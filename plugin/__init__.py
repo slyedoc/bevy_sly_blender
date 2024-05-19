@@ -11,13 +11,14 @@ bl_info = {
 }
 
 import bpy
+
+from .settings.main import BevySettings
 from .ui.main import BEVY_PT_MainPanel
 from .ui.switch import OT_switch_bevy_tooling
+
 # from bpy_types import (PropertyGroup)
 # from bpy.app.handlers import persistent
 # from bpy.props import (BoolProperty, StringProperty, PointerProperty, EnumProperty)
-
-from .settings import (BevySettings, upsert_settings, load_settings)
 
 classes = [
     # main
@@ -30,23 +31,35 @@ classes = [
 
 def register():
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError as e:
+            print(f"{cls.__name__} is already registered. Error: {e}")
+
+def unregister():
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except RuntimeError as e:
+            print(f"Failed to unregister {cls.__name__}. Error: {e}")
+
     #bpy.app.handlers.load_post.append(post_load)
     # for some reason, adding these directly to the tracker class in register() do not work reliably
     #bpy.app.handlers.depsgraph_update_post.append(post_update)
     #bpy.app.handlers.save_post.append(post_save)
 
-def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+# def unregister():
+#     for cls in classes:
+#         print(f"unregistering {cls}")
+#         bpy.utils.unregister_class(cls)
 
     #del bpy.types.WindowManager.bevy
     #bpy.app.handlers.load_post.remove(post_load)
     #bpy.app.handlers.depsgraph_update_post.remove(post_update)
     #bpy.app.handlers.save_post.remove(post_save)
  
-if __name__ == "__main__":
-    register()
+# if __name__ == "__main__":
+#     register()
 
 # def update_scene_lists(self, context):                
 #     blenvy = self# context.window_manager.blenvy

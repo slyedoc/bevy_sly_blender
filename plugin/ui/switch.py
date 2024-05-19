@@ -1,7 +1,7 @@
 import bpy
 from bpy.props import (EnumProperty)
 
-class OT_switch_bevy_tooling(bpy.types.Panel):
+class OT_switch_bevy_tooling(bpy.types.Operator):
     """Switch bevy tooling"""
     bl_idname = "bevy.tooling_switch"
     bl_label = "Switch bevy tooling"

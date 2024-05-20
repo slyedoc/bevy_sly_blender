@@ -23,14 +23,6 @@ class ComponentDefinitionsList(bpy.types.PropertyGroup):
         items.sort(key=lambda a: a[1])
         return items
 
-    @classmethod
-    def register(cls):
-        bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)
-
-    @classmethod
-    def unregister(cls):
-        del bpy.types.WindowManager.components_list
-
     list : bpy.props.EnumProperty(
         name="list",
         description="list",
@@ -43,15 +35,14 @@ class ComponentDefinitionsList(bpy.types.PropertyGroup):
         options={'TEXTEDIT_UPDATE'}
     ) # type: ignore
 
+    @classmethod
+    def register(cls):
+        return
+        #bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)
 
-class ClearComponentDefinitionsList(bpy.types.Operator):
-    ''' clear list of bpy.context.collection.component_definitions '''
-    bl_label = "clear component definitions"
-    bl_idname = "components.clear_component_definitions"
+    @classmethod
+    def unregister(cls):
+        return
+        #del bpy.types.WindowManager.components_list
 
-    def execute(self, context):
-        # create a new item, assign its properties
-        bpy.context.collection.component_definitions.clear()
-        
-        return {'FINISHED'}
     

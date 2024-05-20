@@ -1,42 +1,9 @@
-import os
+
 import bpy
 from bpy_types import (Operator)
-from bpy.props import (StringProperty)
-from bpy_extras.io_utils import ImportHelper
 
-from ..settings.main import upsert_settings
+from ..components_meta import apply_customProperty_values_to_object_propertyGroups, apply_propertyGroup_values_to_object_customProperties, ensure_metadata_for_all_objects
 
-from ..components.metadata import apply_customProperty_values_to_object_propertyGroups, apply_propertyGroup_values_to_object_customProperties, ensure_metadata_for_all_objects
-from ..propGroups.prop_groups import generate_propertyGroups_for_components
-
-class ReloadRegistryOperator(Operator):
-    """Reloads registry (schema file) from disk, generates propertyGroups for components & ensures all objects have metadata """
-    bl_idname = "object.reload_registry"
-    bl_label = "Reload Registry"
-    bl_options = {"UNDO"}
-
-    component_type: StringProperty(
-        name="component_type",
-        description="component type to add",
-    ) # type: ignore
-
-    def execute(self, context):
-        print("reload registry")
-        context.window_manager.components_registry.load_schema()
-        generate_propertyGroups_for_components()
-        print("")
-        print("")
-        print("")
-        ensure_metadata_for_all_objects()
-
-        # now force refresh the ui
-        for area in context.screen.areas: 
-            for region in area.regions:
-                if region.type == "UI":
-                    region.tag_redraw()
-
-        return {'FINISHED'}
-    
 class COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_ALL(Operator):
     """Apply registry to ALL objects: update the custom property values of all objects based on their definition, if any"""
     bl_idname = "object.refresh_custom_properties_all"
@@ -172,68 +139,3 @@ class COMPONENTS_OT_REFRESH_PROPGROUPS_FROM_CUSTOM_PROPERTIES_ALL(Operator):
         bpy.context.window_manager.components_registry.disable_all_object_updates = False
         context.window_manager.components_from_custom_properties_progress_all = -1.0
         return {'FINISHED'}
-
-class OT_OpenSchemaFileBrowser(Operator, ImportHelper):
-    """Browse for registry json file"""
-    bl_idname = "blenvy.open_schemafilebrowser" 
-    bl_label = "Open the file browser" 
-
-    filter_glob: StringProperty( 
-        default='*.json', 
-        options={'HIDDEN'} 
-    ) # type: ignore
-    
-    def execute(self, context): 
-        """Do something with the selected file(s)."""
-        #filename, extension = os.path.splitext(self.filepath) 
-        file_path = bpy.data.filepath
-        # Get the folder
-        folder_path = os.path.dirname(file_path)
-        relative_path = os.path.relpath(self.filepath, folder_path)
-
-        registry = context.window_manager.components_registry
-        registry.schemaPath = relative_path
-
-        blenvy = context.window_manager.blenvy
-        upsert_settings(blenvy.settings_save_path, {"components_schemaPath": relative_path})
-        
-        return {'FINISHED'}
-    
-
-class OT_select_object(Operator):
-    """Select object by name"""
-    bl_idname = "object.select"
-    bl_label = "Select object"
-    bl_options = {"UNDO"}
-
-    object_name: StringProperty(
-        name="object_name",
-        description="object to select's name ",
-    ) # type: ignore
-
-    def execute(self, context):
-        if self.object_name:
-            object = bpy.data.objects[self.object_name]
-            scenes_of_object = list(object.users_scene)
-            if len(scenes_of_object) > 0:
-                bpy.ops.object.select_all(action='DESELECT')
-                bpy.context.window.scene = scenes_of_object[0]
-                object.select_set(True)    
-                bpy.context.view_layer.objects.active = object
-        return {'FINISHED'}
-    
-class OT_select_component_name_to_replace(Operator):
-    """Select component name to replace"""
-    bl_idname = "object.select_component_name_to_replace"
-    bl_label = "Select component name for bulk replace"
-    bl_options = {"UNDO"}
-
-    component_name: StringProperty(
-        name="component_name",
-        description="component name to replace",
-    ) # type: ignore
-
-    def execute(self, context):
-        context.window_manager.bevy_component_rename_helper.original_name = self.component_name
-        return {'FINISHED'}
-    

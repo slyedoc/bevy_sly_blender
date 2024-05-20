@@ -3,6 +3,40 @@ import bpy
 
 from bpy.props import (BoolProperty, StringProperty, PointerProperty, EnumProperty)
 
+
+
+def update_schema_file(self, context):
+    bevy = context.window_manager.bevy # type: BevySettings
+    print("updating schema file", bevy.schema_file)
+
+def update_asset_folders(self, context):
+    
+    bevy = context.window_manager.bevy # type: BevySettings
+    print("updating asset folders", bevy.assets_path)
+
+    # asset_path_names = ['project_root_path', 'assets_path', 'blueprints_path', 'levels_path', 'materials_path']
+    # for asset_path_name in asset_path_names:
+    #     upsert_settings(blenvy.settings_save_path, {asset_path_name: bevy. asset_path_name)})
+
+def upsert_settings(name, data):
+    stored_settings = bpy.data.texts[name] if name in bpy.data.texts else None#bpy.data.texts.new(name)
+    if stored_settings is None:
+        stored_settings = bpy.data.texts.new(name)
+        stored_settings.write(json.dumps(data))
+    else:
+        current_settings = json.loads(stored_settings.as_string())
+        current_settings = {**current_settings, **data}
+        stored_settings.clear()
+        stored_settings.write(json.dumps(current_settings))
+
+def load_settings(name):
+    print("loading settings", name)
+    stored_settings = bpy.data.texts[name] if name in bpy.data.texts else None
+    if stored_settings != None:
+        return json.loads(stored_settings.as_string())
+    return None
+
+
 class BevySettings(bpy.types.PropertyGroup):
     settings_save_path = ".bevy_settings" # where to store data in bpy.texts
     mode: EnumProperty(
@@ -15,20 +49,56 @@ class BevySettings(bpy.types.PropertyGroup):
         ),
         #update=update_mode
     ) # type: ignore    
+    assets_path: StringProperty(
+        name='Export folder',
+        description='The root folder for all exports(relative to the root folder/path) Defaults to "assets" ',
+        default='./assets',
+        options={'HIDDEN'},
+        update= update_asset_folders
+    ) # type: ignore
+    schema_file: StringProperty(
+        name='Schema File',
+        description='The registry.json file',
+        default='./assets/registry.json',
+        options={'HIDDEN'},
+        update= update_asset_folders
+    ) # type: ignore
 
     @classmethod
     def register(cls):
-        print("registering BevySettings")
+        return
         #bpy.types.WindowManager.main_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="main scene", description="main_scene_picker", poll=cls.is_scene_ok)
         #bpy.types.WindowManager.library_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="library scene", description="library_scene_picker", poll=cls.is_scene_ok)
-        bpy.types.WindowManager.bevy = PointerProperty(type=BevySettings)
+        #bpy.types.WindowManager.bevy = PointerProperty(type=BevySettings)
 
     @classmethod
     def unregister(cls):
+        return
         print("unregistering BevySettings")
         #del bpy.types.WindowManager.main_scene
         #del bpy.types.WindowManager.library_scene
-        del bpy.types.WindowManager.bevy
+        #del bpy.types.WindowManager.bevy
+
+    def load_settings(self):
+        print("---------------------loading settings")
+        settings = load_settings(self.settings_save_path)
+        if settings is not None:
+            if "mode" in settings:
+                self.mode = settings["mode"]
+            if "common_main_scene_names" in settings:
+                for main_scene_name in settings["common_main_scene_names"]:
+                    added = self.main_scenes.add()
+                    added.name = main_scene_name
+            if "common_library_scene_names" in settings:
+                for main_scene_name in settings["common_library_scene_names"]:
+                    added = self.library_scenes.add()
+                    added.name = main_scene_name
+
+            asset_path_names = ['project_root_path', 'assets_path', 'blueprints_path', 'levels_path', 'materials_path']
+            for asset_path_name in asset_path_names:
+                if asset_path_name in settings:
+                    setattr(self, asset_path_name, settings[asset_path_name])
+        settings
 
 # def update_scene_lists(self, context):                
 #     print("updating scene lists")

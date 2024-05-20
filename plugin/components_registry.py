@@ -6,9 +6,9 @@ from pathlib import Path
 from bpy_types import (PropertyGroup)
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
-from ..settings.main import load_settings
-from ..propGroups.prop_groups import generate_propertyGroups_for_components
-from ..components.metadata import ComponentMetadata, ensure_metadata_for_all_objects
+from .settings import load_settings
+from .propGroups.prop_groups import generate_propertyGroups_for_components
+from .components_meta import ComponentMetadata, ensure_metadata_for_all_objects
 
 # helper class to store missing bevy types information
 class MissingBevyType(bpy.types.PropertyGroup):
@@ -54,13 +54,7 @@ def watch_schema():
 
 
 # this is where we store the information for all available components
-class ComponentsRegistry(PropertyGroup):
-
-    @property
-    def blenvy_settings(self):
-        # Access the BlenvyManager instance from the WindowManager
-        return bpy.context.window_manager.blenvy
-        
+class ComponentsRegistry(PropertyGroup):        
     # settings_save_path = ".bevy_components_settings" # where to store data in bpy.texts
 
     # schemaPath: bpy.props.StringProperty(
@@ -230,27 +224,29 @@ class ComponentsRegistry(PropertyGroup):
 
     @classmethod
     def register(cls):
-        bpy.types.WindowManager.components_registry = PointerProperty(type=ComponentsRegistry)
-        bpy.context.window_manager.components_registry.watcher_active = False
+        return
+        #bpy.types.WindowManager.components_registry = PointerProperty(type=ComponentsRegistry)
+        #bpy.types.WindowManager.components_registry.watcher_active = False
 
     @classmethod
     def unregister(cls):
-        bpy.context.window_manager.components_registry.watcher_active = False
+        return
+        # bpy.types.WindowManager.components_registry.components_registry.watcher_active = False
 
-        for propgroup_name in cls.component_propertyGroups.keys():
-            try:
-                delattr(ComponentMetadata, propgroup_name)
-                #print("unregistered propertyGroup", propgroup_name)
-            except Exception as error:
-                pass
-                #print("failed to remove", error, "ComponentMetadata")
+        # for propgroup_name in cls.component_propertyGroups.keys():
+        #     try:
+        #         delattr(ComponentMetadata, propgroup_name)
+        #         #print("unregistered propertyGroup", propgroup_name)
+        #     except Exception as error:
+        #         pass
+        #         #print("failed to remove", error, "ComponentMetadata")
         
-        try:
-            bpy.app.timers.unregister(watch_schema)
-        except Exception as error:
-            pass
+        # try:
+        #     bpy.app.timers.unregister(watch_schema)
+        # except Exception as error:
+        #     pass
 
-        del bpy.types.WindowManager.components_registry        
+        # del bpy.types.WindowManager.components_registry        
 
 
     # we load the json once, so we do not need to do it over & over again
@@ -262,8 +258,8 @@ class ComponentsRegistry(PropertyGroup):
         return len(self.type_infos.keys()) != 0
 
     def load_settings(self):
+        settings = bpy.context.window_manager.bevy.load_settings()
 
-        settings = self.blenvy_settings.load_settings()
         print("load settings2", settings)
         schemaPath = settings["components_schemaPath"]
     

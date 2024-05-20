@@ -2,8 +2,8 @@ import bpy
 from bpy.props import (StringProperty, BoolProperty, PointerProperty)
 from bpy_types import (PropertyGroup)
 
-from ..propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
-from ..propGroups.conversions_to_prop_group import property_group_value_from_custom_property_value
+from .propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
+from .propGroups.conversions_to_prop_group import property_group_value_from_custom_property_value
 
 class ComponentMetadata(bpy.types.PropertyGroup):
     short_name : bpy.props.StringProperty(
@@ -52,11 +52,13 @@ class ComponentsMeta(PropertyGroup):
 
     @classmethod
     def register(cls):
-        bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)
+        return
+        #bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)
 
     @classmethod
     def unregister(cls):
-        del bpy.types.Object.components_meta
+        return
+        #del bpy.types.Object.components_meta
 
 # remove no longer valid metadata from object
 def cleanup_invalid_metadata(object):

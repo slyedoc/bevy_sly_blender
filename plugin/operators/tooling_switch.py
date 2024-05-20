@@ -22,6 +22,6 @@ class OT_switch_bevy_tooling(bpy.types.Operator):
         return properties.tool
 
     def execute(self, context):
-        context.window_manager.blenvy.mode = self.tool
+        context.window_manager.bevy.mode = self.tool
         return {'FINISHED'}
     

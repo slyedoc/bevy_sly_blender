@@ -4,7 +4,7 @@ import bpy
 from bpy.types import (PropertyGroup)
 from bpy.props import (PointerProperty, IntProperty, StringProperty)
 
-from ..constants import TEMPSCENE_PREFIX
+from .util import TEMPSCENE_PREFIX
 
 class AutoExportTracker(PropertyGroup):
 
@@ -30,26 +30,14 @@ class AutoExportTracker(PropertyGroup):
 
     @classmethod
     def register(cls):
-        bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
-
-        # setup handlers for updates & saving
-        #bpy.app.handlers.save_post.append(cls.save_handler)
-        #bpy.app.handlers.depsgraph_update_post.append(cls.deps_update_handler)
+        pass
 
     @classmethod
     def unregister(cls):
-        # remove handlers & co
-        """try:
-            bpy.app.handlers.depsgraph_update_post.remove(cls.deps_update_handler)
-        except:pass
-        try:
-            bpy.app.handlers.save_post.remove(cls.save_handler)
-        except:pass"""
-        del bpy.types.WindowManager.auto_export_tracker
+        pass
 
     @classmethod
     def save_handler(cls, scene, depsgraph):
-        print("-------------")
         print("saved", bpy.data.filepath)
         # auto_export(changes_per_scene, export_parameters_changed)
         bpy.ops.export_scenes.auto_gltf(direct_mode= True)

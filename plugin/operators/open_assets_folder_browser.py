@@ -35,18 +35,9 @@ class OT_OpenAssetsFolderBrowser(Operator, ImportHelper):
     def execute(self, context): 
         """Do something with the selected file(s)."""
         bevy = context.window_manager.bevy # type: BevySettings
-        new_path = self.directory
-        target_path_name = self.target_property
-
-        # path to the current blend file
-        blend_file_path = bpy.data.filepath
-        # Get the folder
-        blend_file_folder_path = os.path.dirname(blend_file_path)
-        #print("blend_file_folder_path", blend_file_folder_path)
-        #print("new_path", self.directory, self.target_property, operator)
-        setattr(bevy, target_path_name, new_path)
-
+        setattr(bevy, self.target_property, self.directory)
         return {'FINISHED'}
+    
         #asset_path_names = ['blueprints_path', 'levels_path', 'materials_path']
         #project_root_path = absolute_path_from_blend_file(bevy.project_root_path)
         #assets_path = bevy.assets_path
@@ -103,4 +94,4 @@ class OT_OpenAssetsFolderBrowser(Operator, ImportHelper):
         #     relative_path = os.path.relpath(new_path, export_assets_path_full)
         #     setattr(bevy, target_path_name, relative_path)
 
-        return {'FINISHED'}
+        #return {'FINISHED'}

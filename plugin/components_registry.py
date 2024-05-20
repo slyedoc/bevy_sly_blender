@@ -6,7 +6,7 @@ from pathlib import Path
 from bpy_types import (PropertyGroup)
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
-from .settings import load_settings
+from .settings import BevySettings, load_settings
 from .propGroups.prop_groups import generate_propertyGroups_for_components
 from .components_meta import ComponentMetadata, ensure_metadata_for_all_objects
 
@@ -55,34 +55,18 @@ def watch_schema():
 
 # this is where we store the information for all available components
 class ComponentsRegistry(PropertyGroup):        
-    # settings_save_path = ".bevy_components_settings" # where to store data in bpy.texts
-
-    # schemaPath: bpy.props.StringProperty(
-    #     name="schema path",
-    #     description="path to the registry schema file",
-    #     default="registry.json"
-    # )# type: ignore
-    # schemaFullPath : bpy.props.StringProperty(
-    #     name="schema full path",
-    #     description="path to the registry schema file",
-    # )# type: ignore
-  
     registry: bpy.props. StringProperty(
         name="registry",
         description="component registry"
     )# type: ignore
-
     missing_type_infos: StringProperty(
         name="missing type infos",
         description="unregistered/missing type infos"
     )# type: ignore
-
     disable_all_object_updates: BoolProperty(name="disable_object_updates", default=False) # type: ignore
-
     ## file watcher
     watcher_enabled: BoolProperty(name="Watcher_enabled", default=True, update=toggle_watcher)# type: ignore
     watcher_active: BoolProperty(name = "Flag for watcher status", default = False)# type: ignore
-
     watcher_poll_frequency: IntProperty(
         name="watcher poll frequency",
         description="frequency (s) at wich to poll for changes to the registry file",
@@ -96,7 +80,6 @@ class ComponentsRegistry(PropertyGroup):
         description="",
         default=""
     )# type: ignore
-
 
     missing_types_list: CollectionProperty(name="missing types list", type=MissingBevyType)# type: ignore
     missing_types_list_index: IntProperty(name = "Index for missing types list", default = 0)# type: ignore
@@ -258,12 +241,7 @@ class ComponentsRegistry(PropertyGroup):
         return len(self.type_infos.keys()) != 0
 
     def load_settings(self):
-        settings = bpy.context.window_manager.bevy.load_settings()
-
-        print("load settings2", settings)
-        schemaPath = settings["components_schemaPath"]
-    
-        print("schemaPath", schemaPath)
+        bevy = bpy.context.window_manager.bevy # type: BevySettings
         
         # cleanup previous data if any
         self.propGroupIdCounter = 0
@@ -274,16 +252,8 @@ class ComponentsRegistry(PropertyGroup):
         self.component_propertyGroups.clear()
         self.custom_types_to_add.clear()
         self.invalid_components.clear()
-
-        # now prepare paths to load data
-        file_path = bpy.data.filepath
-        # Get the folder
-        folder_path = os.path.dirname(file_path)
-        path =  os.path.join(folder_path, schemaPath)
-        self.schemaFullPath = path
-
-        f = Path(bpy.path.abspath(path)) # make a path object of abs path
-        with open(path) as f: 
+        
+        with open(bevy.schema_file) as f: 
             data = json.load(f) 
             defs = data["$defs"]
             self.registry = json.dumps(defs) # FIXME:meh ?
@@ -296,7 +266,6 @@ class ComponentsRegistry(PropertyGroup):
 
         generate_propertyGroups_for_components()
         ensure_metadata_for_all_objects()
-
 
     # we keep a list of component propertyGroup around 
     def register_component_propertyGroup(self, name, propertyGroup):

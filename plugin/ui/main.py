@@ -4,6 +4,8 @@ import bpy
 import json
 from types import SimpleNamespace
 
+from plugin.rename_helper import RenameHelper
+
 from ..operators.copy_component import CopyComponentOperator
 from ..operators.fix_component import Fix_Component_Operator
 from ..operators.toggle_component_visibility import Toggle_ComponentVisibility
@@ -253,20 +255,7 @@ def draw_invalid_or_unregistered(layout, components_registry, components_list, s
     operator.component_name = component_name
 
 ## ui logic & co
-def draw_folder_browser(layout, label, prop_origin, target_property):
-    row = layout.row()
-    row.label(text=label)
 
-    '''box = row.box()
-    box.scale_y = 0.5
-    box.label(text=value)'''
-
-    col = row.column()
-    col.enabled = False
-    col.prop(prop_origin, target_property, text="")
-
-    folder_selector = row.operator(OT_OpenAssetsFolderBrowser.bl_idname, icon="FILE_FOLDER", text="")
-    folder_selector.target_property = target_property #"project_root_path"
 
 class BEVY_PT_SidePanel(bpy.types.Panel):
     bl_idname = "BEVY_PT_SidePanel"
@@ -280,17 +269,18 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         object = context.object
         layout = self.layout
         row = layout.row()
+        
+        # get all the data
         bevy = context.window_manager.bevy # type: BevySettings
         asset_registry = context.window_manager.assets_registry # type: AssetsRegistry
         blueprints_registry = context.window_manager.blueprints_registry # type: BlueprintsRegistry
         components_registry = context.window_manager.components_registry # type: ComponentsRegistry        
         components_list = context.window_manager.components_list # type: ComponentDefinitionsList
+        rename_helper = context.window_manager.bevy_component_rename_helper # type: RenameHelper
+        remove_components_progress = context.window_manager.components_remove_progress # type: float
+
         registry_has_type_infos = components_registry.has_type_infos()
         selected_object = context.selected_objects[0] if len(context.selected_objects) > 0 else None
-
-        # This is the first row of the UI
-        row.label(text=f"Selection: {bevy.mode}")
-        row = layout.row()
 
         # Now to actual drawing of the UI
         target = row.box() if bevy.mode == 'COMPONENTS' else row
@@ -317,6 +307,11 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         # match on mode
         
         if bevy.mode == "COMPONENTS":
+     
+            name = context.object.name if context.object != None else ''
+            row.label(text="Components For "+ name)
+            row = layout.row()
+
             if object is not None:
                 row = layout.row(align=True)
                 row.prop(components_list, "list", text="Component")
@@ -451,19 +446,28 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             # header.label(text="Common")
     
             # row = panel.row()
+
             row = layout.row()
-            draw_folder_browser(layout=row, label="Assets Folder", prop_origin=bevy, target_property="assets_path")
-        
+            row.label(text="Assets Folder")
             col = row.column()
-            col.operator(OT_OpenSchemaFileBrowser.bl_idname, text="Browse for registry schema file (json)")
-
-            layout.separator()
-            layout.operator(ReloadRegistryOperator.bl_idname, text="reload registry" , icon="FILE_REFRESH")
-
-            layout.separator()
+            col.enabled = False
+            col.prop(data=bevy, property="assets_path", text="")
+            folder_selector = row.operator(OT_OpenAssetsFolderBrowser.bl_idname, icon="FILE_FOLDER", text="")
+            folder_selector.target_property = "assets_path"
 
             row = layout.row()
-            
+            row.label(text="Schema File")
+            col = row.column()
+            col.enabled = False                        
+            col.prop(data=bevy, property="schema_file", text="")
+            file_selector = row.operator(OT_OpenSchemaFileBrowser.bl_idname, icon="FILE", text="")
+            #file_selector.target_property = "assets_path"
+
+            row = layout.row()
+            row.label(text="Reload Register")
+            row.operator(ReloadRegistryOperator.bl_idname, text="reload registry" , icon="FILE_REFRESH")
+
+            row = layout.row()
             row.prop(components_registry, "watcher_enabled", text="enable registry file polling")
             row.prop(components_registry, "watcher_poll_frequency", text="registry file poll frequency (s)")
 
@@ -492,7 +496,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                         for index, component_meta in enumerate(components_metadata):
                             long_name = component_meta.long_name
                             if component_meta.invalid:
-                                self.draw_invalid_or_unregistered(layout, components_registry, components_list, "Invalid", long_name, object)
+                                draw_invalid_or_unregistered(layout, components_registry, components_list, "Invalid", long_name, object)
                             
                                 if not object.name in objects_with_invalid_components:
                                     objects_with_invalid_components.append(object.name)
@@ -505,15 +509,14 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                         for custom_property in object.keys():
                             if custom_property != 'components_meta' and custom_property != 'bevy_components' and custom_property not in comp_names:
-                                self.draw_invalid_or_unregistered(layout, components_registry, components_list, "Unregistered", custom_property, object)
+                                draw_invalid_or_unregistered(layout, components_registry, components_list, "Unregistered", custom_property, object)
                             
                                 if not object.name in objects_with_invalid_components:
                                     objects_with_invalid_components.append(object.name)
                                 """if not long_name in invalid_component_names:
                                     invalid_component_names.append(custom_property)""" # FIXME
             layout.separator()
-            layout.separator()
-            original_name = bpy.context.window_manager.bevy_component_rename_helper.original_name
+            layout.separator()            
 
             row = layout.row()
             col = row.column()
@@ -526,7 +529,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             row = layout.row()
             col = row.column()
             box = col.box()
-            box.label(text=original_name)
+            box.label(text=rename_helper.original_name)
 
             col = row.column()
             col.prop(components_list, "list", text="")
@@ -540,17 +543,17 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 operator.target_objects = json.dumps(objects_with_invalid_components)
                 new_name = components_registry.type_infos[components_list.list]['short_name'] if components_list.list in components_registry.type_infos else ""
                 operator.new_name = new_name
-                col.enabled = registry_has_type_infos and original_name != "" and original_name != new_name
+                col.enabled = registry_has_type_infos and rename_helper.original_name != "" and rename_helper.original_name != new_name
             else:
                 if hasattr(layout,"progress") : # only for Blender > 4.0
                     col.progress(factor = components_rename_progress, text=f"updating {components_rename_progress * 100.0:.2f}%")
 
             col = row.column()
-            remove_components_progress = context.window_manager.components_remove_progress
+            
             if remove_components_progress == -1.0:
                 operator = row.operator(RemoveComponentFromAllObjectsOperator.bl_idname, text="", icon="X")
-                operator.component_name = context.window_manager.bevy_component_rename_helper.original_name
-                col.enabled = registry_has_type_infos and original_name != ""
+                operator.component_name = rename_helper.original_name
+                col.enabled = registry_has_type_infos and rename_helper.original_name != ""
             else:
                 if hasattr(layout,"progress") : # only for Blender > 4.0
                     col.progress(factor = remove_components_progress, text=f"updating {remove_components_progress * 100.0:.2f}%")

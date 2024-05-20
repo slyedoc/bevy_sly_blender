@@ -1,7 +1,7 @@
 import bpy
 from pathlib import Path
 from bpy_types import (PropertyGroup)
-from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
+from bpy.props import (StringProperty, EnumProperty)
 
 # Asset property group
 class Asset(PropertyGroup):

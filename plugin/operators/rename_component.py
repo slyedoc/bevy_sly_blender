@@ -2,6 +2,9 @@ import json
 import bpy
 from bpy_types import Operator
 from bpy.props import (StringProperty)
+
+from plugin.components_registry import ComponentsRegistry
+from plugin.rename_helper import RenameHelper
 from ..components_meta import get_bevy_components, rename_component
 
 class OT_rename_component(Operator):
@@ -20,19 +23,19 @@ class OT_rename_component(Operator):
 
     @classmethod
     def register(cls):
-        bpy.types.WindowManager.components_rename_progress = bpy.props.FloatProperty(default=-1.0) #bpy.props.PointerProperty(type=RenameHelper)
+        return
 
     @classmethod
     def unregister(cls):
-        del bpy.types.WindowManager.components_rename_progress
+        return
 
     def execute(self, context):
-        registry = context.window_manager.components_registry
+        settings = context.window_manager.bevy_component_rename_helper # type: RenameHelper
+        registry = context.window_manager.components_registry # type: ComponentsRegistry
         type_infos = registry.type_infos
-        settings = context.window_manager.bevy_component_rename_helper
+        
         original_name = settings.original_name if self.original_name == "" else self.original_name
         new_name = self.new_name
-
 
         print("renaming components: original name", original_name, "new_name", self.new_name, "targets", self.target_objects)
         target_objects = json.loads(self.target_objects)

@@ -16,6 +16,7 @@ from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorP
 
 from bpy.app.handlers import persistent
 
+# one big ui for now while simplifying
 from .ui.main import BEVY_PT_SidePanel
 from .ui.missing_types import MISSING_TYPES_UL_List
 
@@ -40,26 +41,28 @@ from .operators.select_object import OT_select_object
 from .operators.toggle_component_visibility import Toggle_ComponentVisibility
 from .operators.tooling_switch import OT_switch_bevy_tooling
 
-# prop groups
+# data
 from .settings import BevySettings
 from .assets_registry import Asset, AssetsRegistry
 from .blueprints_registry import BlueprintsRegistry
 from .component_definitions_list import ComponentDefinitionsList
-from .components_registry import ComponentsRegistry, MissingBevyType
+from .components_registry import MissingBevyType, ComponentsRegistry, watch_schema
 from .rename_helper import RenameHelper
 from .components_meta import (ComponentMetadata, ComponentsMeta)
+from .auto_export_tracker import AutoExportTracker
 
 classes = [
     # main
     AssetsRegistry,
     BevySettings,
-    ComponentsRegistry,    
     BlueprintsRegistry,
     ComponentDefinitionsList,
     RenameHelper,
     ComponentMetadata,
     ComponentsMeta,
-    MissingBevyType,
+    MissingBevyType, # before ComponentsRegistry
+    ComponentsRegistry,   
+    AutoExportTracker,
 
     #UI
     BEVY_PT_SidePanel,
@@ -97,45 +100,50 @@ classes = [
 @persistent
 def post_update(scene, depsgraph):
     print("\n\npost_update\n\n");
-    #bpy.context.window_manager.auto_export_tracker.deps_post_update_handler( scene, depsgraph)
+    auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+    auto_export_tracker.deps_post_update_handler( scene, depsgraph)
 
 @persistent
 def post_save(scene, depsgraph):
     print("\n\npost_save\n\n");
-    #bpy.context.window_manager.auto_export_tracker.save_handler( scene, depsgraph)
+    auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+    auto_export_tracker.save_handler( scene, depsgraph)
 
 @persistent
 def post_load(file_name):
-    registry = bpy.context.window_manager.components_registry
-    if registry  is not None:
-        registry.load_settings()
     bevy = bpy.context.window_manager.bevy
+    components_registry = bpy.context.window_manager.components_registry
+    
+    print("\n\nloaded blend file: loading settings\n\n")
+    if components_registry is not None:
+        components_registry.load_settings()
     bevy.load_settings()
 
 def register():
-    
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
         except ValueError as e:
             pass
             #print(f"{cls.__name__} is already registered. Error: {e}")
-
-    #assets_registory
     
+    # Instead of having each class register its down global data, I want to see whats out there
+
+    #assets_registory - bpy.types.Scene and bpy.types.Collection didnt exist - not working
     #bpy.types.Scene.user_assets = CollectionProperty(name="user assets", type=Asset)
     #bpy.types.Collection.user_assets = CollectionProperty(name="user assets", type=Asset) 
-    bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)
+    bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)                
 
     bpy.types.WindowManager.bevy = PointerProperty(type=BevySettings)
     bpy.types.WindowManager.assets_registry = PointerProperty(type=AssetsRegistry)
     bpy.types.WindowManager.blueprints_registry = PointerProperty(type=BlueprintsRegistry)
     bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)    
     bpy.types.WindowManager.components_registry = PointerProperty(type=ComponentsRegistry)
-    bpy.types.WindowManager.components_registry.watcher_active = False
-
-    bpy.app.handlers.load_post.append(post_load)
-    # for some reason, adding these directly to the tracker class in register() do not work reliably
+    bpy.types.WindowManager.bevy_component_rename_helper = bpy.props.PointerProperty(type=RenameHelper)
+    bpy.types.WindowManager.components_rename_progress = bpy.props.FloatProperty(default=-1.0) #bpy.props.PointerProperty(type=RenameHelper)
+    bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
+                
+    bpy.app.handlers.load_post.append(post_load)    
     bpy.app.handlers.depsgraph_update_post.append(post_update)
     bpy.app.handlers.save_post.append(post_save)
 
@@ -149,39 +157,44 @@ def unregister():
     
     #del bpy.types.Scene.user_assets
     #del bpy.types.Collection.user_assets
-    #del bpy.types.Object.components_meta
+    del bpy.types.Object.components_meta
     
     del bpy.types.WindowManager.bevy
     del bpy.types.WindowManager.assets_registry
     del bpy.types.WindowManager.blueprints_registry
     del bpy.types.WindowManager.components_list
-    
-    components_registry = bpy.types.WindowManager.components_registry # type: ComponentsRegistry
-    components_registry.watcher_active = False
+    del bpy.types.WindowManager.bevy_component_rename_helper
+    del bpy.types.WindowManager.components_rename_progress
+    del bpy.types.WindowManager.auto_export_tracker
 
-    for propgroup_name in components_registry.component_propertyGroups.keys():
-        try:
-            delattr(ComponentMetadata, propgroup_name)
-            #print("unregistered propertyGroup", propgroup_name)
-        except Exception as error:
-            pass
-            #print("failed to remove", error, "ComponentMetadata")
+    # figure out what this was doing
+    #components_registry = bpy.types.WindowManager.components_registry # type: ComponentsRegistry
+    # components_registry.watcher_active = False
+    # for propgroup_name in cls.component_propertyGroups.keys():
+    #     try:
+    #         delattr(ComponentMetadata, propgroup_name)
+    #         #print("unregistered propertyGroup", propgroup_name)
+    #     except Exception as error:
+    #         pass
+    #         #print("failed to remove", error, "ComponentMetadata")
         
-        try:
-            bpy.app.timers.unregister(watch_schema)
-        except Exception as error:
-            pass
+    #     try:
 
-        del bpy.types.WindowManager.components_registry        
-
-
+    #     except Exception as error:
+    #         pass
+    try:
+        bpy.app.timers.unregister(watch_schema)
+    except Exception as error:
+        pass
+    
+    del bpy.types.WindowManager.components_registry
     
     bpy.app.handlers.load_post.remove(post_load)
     bpy.app.handlers.depsgraph_update_post.remove(post_update)
     bpy.app.handlers.save_post.remove(post_save)
 
-if __name__ == "__main__":
-     register()
+# if __name__ == "__main__":
+#      register()
 
 # def update_scene_lists(self, context):                
 #     blenvy = self# context.window_manager.blenvy

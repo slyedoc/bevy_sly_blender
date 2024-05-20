@@ -3,6 +3,8 @@ import bpy
 from bpy_types import (Operator)
 from bpy.props import (StringProperty)
 
+from ..components_registry import ComponentsRegistry
+
 from ..components_meta import ensure_metadata_for_all_objects
 from ..propGroups.prop_groups import generate_propertyGroups_for_components
 
@@ -19,11 +21,10 @@ class ReloadRegistryOperator(Operator):
 
     def execute(self, context):
         print("reload registry")
-        context.window_manager.components_registry.load_schema()
+        components_registry = context.window_manager.components_registry # type: ComponentsRegistry
+        components_registry.load_settings()
+        
         generate_propertyGroups_for_components()
-        print("")
-        print("")
-        print("")
         ensure_metadata_for_all_objects()
 
         # now force refresh the ui

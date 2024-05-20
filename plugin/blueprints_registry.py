@@ -45,7 +45,6 @@ class BlueprintsRegistry(PropertyGroup):
     def unregister(cls):
         return
 
-
     def add_blueprint(self, blueprint): 
         self.blueprints_list.append(blueprint)
 
@@ -56,6 +55,5 @@ class BlueprintsRegistry(PropertyGroup):
             print("addon_prefs", addon_prefs)
             addon_prefs["export_marked_assets"] = False
             addon_prefs = SimpleNamespace(**addon_prefs)
-            [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes(addon_prefs)
-            blueprints_data = blueprints_scan(level_scenes, library_scenes, addon_prefs)
-            self.blueprints_data = blueprints_data
+            [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes(addon_prefs)            
+            self.blueprints_data = blueprints_scan(level_scenes, library_scenes, addon_prefs)

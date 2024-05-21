@@ -2,11 +2,10 @@ import bpy
 import json
 import os
 import uuid
-from pathlib import Path
-from bpy_types import (PropertyGroup)
+
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
-from .settings import BevySettings, load_settings
+from .settings import BevySettings
 from .propGroups.prop_groups import generate_propertyGroups_for_components
 from .components_meta import ComponentMetadata, ensure_metadata_for_all_objects
 
@@ -54,7 +53,7 @@ def watch_schema():
 
 
 # this is where we store the information for all available components
-class ComponentsRegistry(PropertyGroup):        
+class ComponentsRegistry(bpy.types.PropertyGroup):        
     registry: bpy.props. StringProperty(
         name="registry",
         description="component registry"

@@ -1,10 +1,10 @@
-# TODO: might break this up, but for now trying to get a better picture of the whole thing
+# TODO: will break this up, but for now trying to get a control over things,
+# and have random panels that exists god knows where
+# spawning in due to a parentid doesnt work for me
 
 import bpy
 import json
 from types import SimpleNamespace
-
-from plugin.rename_helper import RenameHelper
 
 from ..operators.copy_component import CopyComponentOperator
 from ..operators.fix_component import Fix_Component_Operator
@@ -31,6 +31,8 @@ from ..component_definitions_list import ComponentDefinitionsList
 from ..settings import BevySettings
 from ..blueprints_registry import BlueprintsRegistry
 from ..assets_registry import AssetsRegistry
+from ..rename_helper import RenameHelper
+
 
 ## assets ui
 def draw_assets(layout, name, title, asset_registry, target_type, target_name, editable=True, user_assets= [], generated_assets = []):
@@ -470,6 +472,10 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             row = layout.row()
             row.prop(components_registry, "watcher_enabled", text="enable registry file polling")
             row.prop(components_registry, "watcher_poll_frequency", text="registry file poll frequency (s)")
+
+            row = layout.row()
+            row.label(text="Auto Export")
+            row.prop(bevy, "auto_export", text="Export on save")
 
         if bevy.mode == "TOOLS":
 

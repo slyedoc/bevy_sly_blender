@@ -1,44 +1,51 @@
 import json
 import bpy
-from bpy.types import Operator
-#from ..ui.main import GLTF_PT_auto_export_general, GLTF_PT_auto_export_main, GLTF_PT_auto_export_root
 
-from .preferences import (AutoExportGltfAddonPreferences, AutoExportGltfPreferenceNames)
-from .auto_export import auto_export
-from ..helpers.generate_complete_preferences_dict import generate_complete_preferences_dict_auto
+from ..auto_export_tracker import AutoExportTracker
 
-class AutoExportGLTF(Operator, AutoExportGltfAddonPreferences):#, ExportHelper):
-    """auto export gltf"""
-    #bl_idname = "object.xxx"
+from ..settings import BevySettings
+from ..helpers.auto_export import auto_export
+
+# AutoExportGltfPreferenceNames = [
+#     'will_save_settings',
+#     'show_general_settings',
+#     'auto_export',
+#     'assets_path',
+#     'export_scene_settings',
+#     'show_change_detection_settings',
+#     'change_detection',
+#     'show_scene_settings',
+#     'main_scenes',
+#     'library_scenes',
+#     'main_scenes_index',
+#     'library_scenes_index',
+#     'main_scene_names',
+#     'library_scene_names',
+#     'show_blueprint_settings',
+#     'export_blueprints',
+#     'collection_instances_combine_mode',
+#     'export_materials_library',
+# ]
+
+class AutoExportGLTF(bpy.types.Operator):
     bl_idname = "export_scenes.auto_gltf"
     bl_label = "Apply settings"
-    bl_options = {'PRESET'} # we do not add UNDO otherwise it leads to an invisible operation that resets the state of the saved serialized scene, breaking compares for normal undo/redo operations
+    bl_options = {'PRESET'} 
+    # we do not add UNDO otherwise it leads to an invisible operation that resets the state of the saved serialized scene, breaking compares for normal undo/redo operations
     # ExportHelper mixin class uses this
     #filename_ext = ''
     #filepath: bpy.props.StringProperty(subtype="FILE_PATH", default="") # type: ignore
 
     #list of settings (other than purely gltf settings) whose change should trigger a re-generation of gltf files
     white_list = [
-        'auto_export',
-        'project_root_path',
-        'assets_path',
         'change_detection',
         'export_scene_settings',
-
         'main_scene_names',
         'library_scene_names',
-
         'export_blueprints',
-        'blueprints_path',
-        'export_marked_assets',
         'collection_instances_combine_mode',
-
-        'levels_path',
-        'export_separate_dynamic_and_static_objects',
-
         'export_materials_library',
-        'materials_path',
-        ]
+    ]
 
     @classmethod
     def register(cls):
@@ -48,86 +55,31 @@ class AutoExportGLTF(Operator, AutoExportGltfAddonPreferences):#, ExportHelper):
     def unregister(cls):
        pass
 
-    def format_settings(self):
-        # find all props to save
-        exceptional = [
-            # options that don't start with 'export_'  
-            'collection_instances_combine_mode',
-        ]
-        all_props = self.properties
-        export_props = {
-            x: getattr(self, x) for x in dir(all_props)
-            if (x.startswith("export_") or x in exceptional) and all_props.get(x) is not None
-        }
-        # we inject all that we need, the above is not sufficient
-        for (k, v) in self.properties.items():
-            if k in self.white_list or k not in AutoExportGltfPreferenceNames:
-                value = v
-                # FIXME: really weird having to do this
-                if k == "collection_instances_combine_mode":
-                    value = self.collection_instances_combine_mode
-                if k == "export_materials":
-                    value = self.export_materials
-                export_props[k] = value
-        # we add main & library scene names to our preferences
-        
-        return export_props
-
-    def save_settings(self, context):
-        print("save settings")
-        auto_export_settings = self.format_settings()
-        
-        stored_settings = bpy.data.texts[".gltf_auto_export_settings"] if ".gltf_auto_export_settings" in bpy.data.texts else bpy.data.texts.new(".gltf_auto_export_settings")
-        stored_settings.clear()
-
-        auto_export_settings = generate_complete_preferences_dict_auto(auto_export_settings)
-        stored_settings.write(json.dumps(auto_export_settings))
-        print("saved settings", auto_export_settings)
-        #print("saving settings", bpy.data.texts[".gltf_auto_export_settings"].as_string(), "raw", json.dumps(export_props))
-   
-    def load_settings(self, context):
-        print("loading settings")
-        settings = None
-        try:
-            settings = bpy.data.texts[".gltf_auto_export_settings"].as_string()
-            settings = json.loads(settings)
-        except: pass
-
-        self.will_save_settings = False
-        if settings:
-            #print("loading settings in invoke AutoExportGLTF", settings)
-            try:
-                for (k, v) in settings.items():
-                    #print("loading setting", k, v)
-                    setattr(self, k, v)
-                self.will_save_settings = True
-
-                # Update filter if user saved settings
-                if hasattr(self, 'export_format'):
-                    self.filter_glob = '*.glb' if self.export_format == 'GLB' else '*.gltf'
-
-                # inject scenes data
-                if hasattr(self, 'main_scene_names'):
-                    main_scenes = self.main_scenes
-                    main_scenes.clear()
-                    for item_name in self.main_scene_names:
-                        item = main_scenes.add()
-                        item.name = item_name
-
-                if hasattr(self, 'library_scene_names'):
-                    library_scenes = self.library_scenes
-                    library_scenes.clear()
-                    for item_name in self.library_scene_names:
-                        item = library_scenes.add()
-                        item.name = item_name
-
-            except Exception as error:
-                print("error", error)
-                self.report({"ERROR"}, "Loading export settings failed. Removed corrupted settings")
-                bpy.data.texts.remove(bpy.data.texts[".gltf_auto_export_settings"])
-        else:
-            self.will_save_settings = True
-
+    # will come back to this
+    # def format_settings(self):
+    #     # find all props to save
+    #     exceptional = [
+    #         # options that don't start with 'export_'  
+    #         'collection_instances_combine_mode',
+    #     ]
+    #     all_props = self.properties
+    #     export_props = {
+    #         x: getattr(self, x) for x in dir(all_props)
+    #         if (x.startswith("export_") or x in exceptional) and all_props.get(x) is not None
+    #     }
+    #     # we inject all that we need, the above is not sufficient
+    #     for (k, v) in self.properties.items():
+    #         if k in self.white_list or k not in AutoExportGltfPreferenceNames:
+    #             value = v
+    #             # FIXME: really weird having to do this
+    #             if k == "collection_instances_combine_mode":
+    #                 value = self.collection_instances_combine_mode
+    #             if k == "export_materials":
+    #                 value = self.export_materials
+    #             export_props[k] = value
+    #     # we add main & library scene names to our preferences
+    #     return export_props
+    
     """
     This should ONLY be run when actually doing exports/aka calling auto_export function, because we only care about the difference in settings between EXPORTS
     """
@@ -187,17 +139,12 @@ class AutoExportGLTF(Operator, AutoExportGltfAddonPreferences):#, ExportHelper):
         # FIXME: add it back
         return {}
 
-    def execute(self, context):
-        print("execute auto export", context.window_manager.bevy.auto_export) 
-        blenvy = context.window_manager.blenvy
-        auto_export_settings = blenvy.auto_export
-        bpy.context.window_manager.auto_export_tracker.disable_change_detection()
-        if self.direct_mode:
-            self.load_settings(context)
-        if self.will_save_settings:
-            self.save_settings(context)
-        #print("self", self.auto_export)
-        if auto_export_settings.auto_export: # only do the actual exporting if auto export is actually enabled
+    def execute(self, context):        
+        bevy = context.window_manager.bevy # type: BevySettings
+        auto_export_tracker =  bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+        auto_export_tracker.disable_change_detection()
+
+        if bevy.auto_export: # only do the actual exporting if auto export is actually enabled
             print("auto export")
             #changes_per_scene = context.window_manager.auto_export_tracker.changed_objects_per_scene
             #& do the export
@@ -205,20 +152,20 @@ class AutoExportGLTF(Operator, AutoExportGltfAddonPreferences):#, ExportHelper):
             changes_per_scene = self.did_objects_change()
             # determine changed parameters 
             params_changed = self.did_export_settings_change()
-            auto_export(changes_per_scene, params_changed, blenvy)
+            auto_export(changes_per_scene, params_changed, bevy)
             # cleanup 
             # reset the list of changes in the tracker
-            bpy.context.window_manager.auto_export_tracker.clear_changes()
+            auto_export_tracker.clear_changes()
             print("AUTO EXPORT DONE")            
-            bpy.app.timers.register(bpy.context.window_manager.auto_export_tracker.enable_change_detection, first_interval=0.1)
+            bpy.app.timers.register(auto_export_tracker.enable_change_detection, first_interval=0.1)
         else: 
             print("auto export disabled, skipping")
         return {'FINISHED'}    
     
     def invoke(self, context, event):
         print("invoke")
-        bpy.context.window_manager.auto_export_tracker.disable_change_detection()
-        self.load_settings(context)
+        auto_export_tracker =  bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+        auto_export_tracker.disable_change_detection()
         return context.window_manager.invoke_props_dialog(self, title="Auto export", width=640)
     
     def cancel(self, context):

@@ -2,9 +2,10 @@ import os
 import bpy
 from pathlib import Path
 
-from ..util import TEMPSCENE_PREFIX
-from .generate_and_export import generate_and_export
-from .export_gltf import (generate_gltf_export_preferences, export_gltf)
+from plugin.settings import BevySettings
+
+from ..util import CHANGE_DETECTION, EXPORT_BLUEPRINTS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, TEMPSCENE_PREFIX
+from .generate_and_export import generate_and_export, export_gltf
 from .dynamic import is_object_dynamic, is_object_static
 from .helpers_scenes import get_scenes, clear_hollow_scene, copy_hollowed_collection_into
 from .blueprints import check_if_blueprint_on_disk, inject_blueprints_list_into_main_scene, remove_blueprints_list_from_main_scene
@@ -44,30 +45,29 @@ def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, coll
 
 
 # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
-def get_levels_to_export(changes_per_scene, changed_export_parameters, blueprints_data, addon_prefs):
-    export_gltf_extension = getattr(addon_prefs, "export_gltf_extension")
-    export_levels_path_full = getattr(addon_prefs, "export_levels_path_full")
+def get_levels_to_export(changes_per_scene, changed_export_parameters, blueprints_data, bevy: BevySettings):
+    export_gltf_extension = GLTF_EXTENSION
+    export_levels_path_full = os.path.join(bevy.assets_path, LEVELS_PATH)
 
-    change_detection = getattr(addon_prefs.auto_export, "change_detection")
-    collection_instances_combine_mode = getattr(addon_prefs.auto_export, "collection_instances_combine_mode")
+    change_detection = CHANGE_DETECTION
+    collection_instances_combine_mode = bevy.collection_instances_combine_mode
 
-    [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes(addon_prefs)
+    [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes()
  
     # determine list of main scenes to export
     # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
-    main_scenes_to_export = [scene_name for scene_name in main_scene_names if not change_detection or changed_export_parameters or scene_name in changes_per_scene.keys() or changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode) or not check_if_blueprint_on_disk(scene_name, export_levels_path_full, export_gltf_extension) ]
+    main_scenes_to_export = [scene_name for scene_name in main_scene_names if not change_detection 
+                             or changed_export_parameters 
+                             or scene_name in changes_per_scene.keys() 
+                             or changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode) 
+                             or not check_if_blueprint_on_disk(scene_name, export_levels_path_full, export_gltf_extension) ]
 
     return (main_scenes_to_export)
 
 
-def export_main_scene(scene, blend_file_path, addon_prefs, blueprints_data): 
-    gltf_export_preferences = generate_gltf_export_preferences(addon_prefs)
-    export_assets_path_full = getattr(addon_prefs,"export_assets_path_full")
-    export_levels_path_full = getattr(addon_prefs,"export_levels_path_full")
+def export_main_scene(scene, blueprints_data, bevy: BevySettings): 
 
-    export_blueprints = getattr(addon_prefs.auto_export,"export_blueprints")
-    export_separate_dynamic_and_static_objects = getattr(addon_prefs.auto_export, "export_separate_dynamic_and_static_objects")
-
+    gltf_export_preferences = bevy.generate_gltf_export_preferences()
     export_settings = { **gltf_export_preferences, 
                        'use_active_scene': True, 
                        'use_active_collection':True, 
@@ -76,13 +76,12 @@ def export_main_scene(scene, blend_file_path, addon_prefs, blueprints_data):
                        'use_renderable': False,
                        'export_apply':True
                        }
+    gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene.name)
 
-    if export_blueprints : 
-        gltf_output_path = os.path.join(export_levels_path_full, scene.name)
-
+    if EXPORT_BLUEPRINTS : 
         #inject_blueprints_list_into_main_scene(scene, blueprints_data, addon_prefs)
         return
-        if export_separate_dynamic_and_static_objects:
+        if EXPORT_STATIC_DYNAMIC:
             #print("SPLIT STATIC AND DYNAMIC")
             # first export static objects
             generate_and_export(
@@ -95,7 +94,7 @@ def export_main_scene(scene, blend_file_path, addon_prefs, blueprints_data):
             )
 
             # then export all dynamic objects
-            gltf_output_path = os.path.join(export_levels_path_full, scene.name+ "_dynamic")
+            gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene.name + "_dynamic")
             generate_and_export(
                 addon_prefs, 
                 temp_scene_name=TEMPSCENE_PREFIX,
@@ -117,7 +116,6 @@ def export_main_scene(scene, blend_file_path, addon_prefs, blueprints_data):
             )
 
     else:
-        gltf_output_path = os.path.join(export_assets_path_full, scene.name)
         print("       exporting gltf to", gltf_output_path, ".gltf/glb")
         export_gltf(gltf_output_path, export_settings)
 

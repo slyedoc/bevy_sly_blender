@@ -1,6 +1,16 @@
 import bpy
-from ..auto_export.export_gltf import export_gltf
+import os
 from .collections import (set_active_collection)
+
+#https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf
+def export_gltf(path, export_settings):
+    settings = {**export_settings, "filepath": path }
+    settings.pop("mode", None)
+    print("export settings", settings)
+    
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    #bpy.ops.export_scene.gltf(**settings)
+
 
 """ 
 generates a temporary scene, fills it with data, cleans up after itself
@@ -10,7 +20,7 @@ generates a temporary scene, fills it with data, cleans up after itself
     * cleaned up using tempScene_cleaner
 
 """
-def generate_and_export(addon_prefs, export_settings, gltf_output_path, temp_scene_name="__temp_scene", tempScene_filler=None, tempScene_cleaner=None): 
+def generate_and_export(export_settings, gltf_output_path, temp_scene_name="__temp_scene", tempScene_filler=None, tempScene_cleaner=None): 
 
     temp_scene = bpy.data.scenes.new(name=temp_scene_name)
     temp_root_collection = temp_scene.collection

@@ -5,9 +5,11 @@ import bpy
 
 from types import SimpleNamespace
 
-from ..util import TEMPSCENE_PREFIX
+from plugin.settings import BevySettings
+
+from ..util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS, EXPORT_MATERIALS_LIBRARY, GLTF_EXTENSION, TEMPSCENE_PREFIX
 from .generate_and_export import generate_and_export
-from .export_gltf import (generate_gltf_export_preferences)
+
 from .helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into, get_scenes
 from .scenes import add_scene_property
 
@@ -107,8 +109,7 @@ class Blueprint:
 # - marked as asset
 # - with the "auto_export" flag
 # https://blender.stackexchange.com/questions/167878/how-to-get-all-collections-of-the-current-scene
-def blueprints_scan(main_scenes, library_scenes, addon_prefs):
-    export_marked_assets = getattr(addon_prefs.auto_export,"export_marked_assets")
+def blueprints_scan(main_scenes, library_scenes):
 
     blueprints = {}
     blueprints_from_objects = {}
@@ -184,12 +185,12 @@ def blueprints_scan(main_scenes, library_scenes, addon_prefs):
         
         if (
             'AutoExport' in collection and collection['AutoExport'] == True # get marked collections
-            or export_marked_assets and collection.asset_data is not None # or if you have marked collections as assets you can auto export them too
+            or EXPORT_MARKED_ASSETS and collection.asset_data is not None # or if you have marked collections as assets you can auto export them too
             or collection.name in list(internal_collection_instances.keys()) # or if the collection has an instance in one of the main scenes
             ):
             blueprint = Blueprint(collection.name)
             blueprint.local = True
-            blueprint.marked = 'AutoExport' in collection and collection['AutoExport'] == True or export_marked_assets and collection.asset_data is not None
+            blueprint.marked = 'AutoExport' in collection and collection['AutoExport'] == True or EXPORT_MARKED_ASSETS and collection.asset_data is not None
             blueprint.objects = [object.name for object in collection.all_objects if not object.instance_type == 'COLLECTION'] # inneficient, double loop
             blueprint.nested_blueprints = [object.instance_collection.name for object in collection.all_objects if object.instance_type == 'COLLECTION'] # FIXME: not precise enough, aka "what is a blueprint"
             blueprint.collection = collection
@@ -341,17 +342,14 @@ def blueprints_scan(main_scenes, library_scenes, addon_prefs):
     return SimpleNamespace(**data)
 
 # export blueprints
-
-
    
-def export_blueprints(blueprints, addon_prefs, blueprints_data):
-    export_blueprints_path_full = getattr(addon_prefs, "export_blueprints_path_full")
-    gltf_export_preferences = generate_gltf_export_preferences(addon_prefs)
+def export_blueprints(blueprints, blueprints_data, bevy: BevySettings):
+    export_blueprints_path_full = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)
+    gltf_export_preferences = bevy.generate_gltf_export_preferences()
     
     try:
         # save current active collection
         active_collection =  bpy.context.view_layer.active_layer_collection
-        export_materials_library = getattr(addon_prefs.auto_export, "export_materials_library")
 
         for blueprint in blueprints:
             print("exporting collection", blueprint.name)
@@ -359,13 +357,12 @@ def export_blueprints(blueprints, addon_prefs, blueprints_data):
             export_settings = { **gltf_export_preferences, 'use_active_scene': True, 'use_active_collection': True, 'use_active_collection_with_nested':True}
             
             # if we are using the material library option, do not export materials, use placeholder instead
-            if export_materials_library:
+            if EXPORT_MATERIALS_LIBRARY:
                 export_settings['export_materials'] = 'PLACEHOLDER'
 
             collection = bpy.data.collections[blueprint.name]
             # do the actual export
             generate_and_export(
-                addon_prefs, 
                 temp_scene_name=TEMPSCENE_PREFIX+collection.name,
                 export_settings=export_settings,
                 gltf_output_path=gltf_output_path,
@@ -382,13 +379,10 @@ def export_blueprints(blueprints, addon_prefs, blueprints_data):
 
 
 # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
-def get_blueprints_to_export(changes_per_scene, changed_export_parameters, blueprints_data, addon_prefs):
-    export_gltf_extension = getattr(addon_prefs, "export_gltf_extension", ".glb")
-    export_blueprints_path_full = getattr(addon_prefs,"export_blueprints_path_full", "")
-    change_detection = getattr(addon_prefs.auto_export, "change_detection")
-    collection_instances_combine_mode = getattr(addon_prefs.auto_export, "collection_instances_combine_mode")
+def get_blueprints_to_export(changes_per_scene, changed_export_parameters, blueprints_data, bevy: BevySettings):
+    blueprints_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)
 
-    [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes(addon_prefs)
+    [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes()
     internal_blueprints = blueprints_data.internal_blueprints
     blueprints_to_export = internal_blueprints # just for clarity
 
@@ -396,12 +390,12 @@ def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bluep
     
     # if the export parameters have changed, bail out early
     # we need to re_export everything if the export parameters have been changed
-    if change_detection and not changed_export_parameters:
+    if CHANGE_DETECTION and not changed_export_parameters:
         changed_blueprints = []
 
         # first check if all collections have already been exported before (if this is the first time the exporter is run
         # in your current Blender session for example)
-        blueprints_not_on_disk = find_blueprints_not_on_disk(internal_blueprints, export_blueprints_path_full, export_gltf_extension)
+        blueprints_not_on_disk = find_blueprints_not_on_disk(internal_blueprints, blueprints_path, GLTF_EXTENSION)
 
         for scene in library_scenes:
             if scene.name in changes_per_scene:
@@ -427,7 +421,7 @@ def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bluep
             # print("INSTANCES", blueprint_instances, blueprints_data.internal_collection_instances)
             # marked blueprints that have changed are always exported, regardless of whether they are in use (have instances) or not 
             for blueprint_instance in blueprint_instances:
-                combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else collection_instances_combine_mode
+                combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else bevy.collection_instances_combine_mode
                 if combine_mode == "Split": # we only keep changed blueprints if mode is set to split for at least one instance (aka if ALL instances of a blueprint are merged, do not export ? )  
                     filtered_blueprints.append(blueprint)
 

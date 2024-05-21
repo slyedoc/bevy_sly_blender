@@ -1,5 +1,7 @@
 import json
 import bpy
+
+from plugin.settings import BevySettings
 from .object_makers import (make_empty)
 
 
@@ -206,16 +208,12 @@ def clear_hollow_scene(temp_scene, original_root_collection):
     restore_original_names(original_root_collection)
 
 # convenience utility to get lists of scenes
-def get_scenes(addon_prefs):
-    level_scene_names= getattr(addon_prefs, "main_scene_names", []) #list(map(lambda scene: scene.name, getattr(addon_prefs,"main_scenes")))
-    library_scene_names = getattr(addon_prefs, "library_scene_names", []) #list(map(lambda scene: scene.name, getattr(addon_prefs,"library_scenes")))
-
-    level_scene_names= list(map(lambda scene: scene.name, getattr(addon_prefs,"main_scenes")))
-    library_scene_names = list(map(lambda scene: scene.name, getattr(addon_prefs,"library_scenes")))
+def get_scenes():
+    bevy = bpy.context.window_manager.bevy # type: BevySettings    
+    level_scene_names= list(map(lambda scene: scene.name, bevy.main_scenes))
+    library_scene_names = list(map(lambda scene: scene.name, bevy.library_scenes))
 
     print("level_scene_names", level_scene_names)
-    level_scene_names = list(filter(lambda name: name in bpy.data.scenes, level_scene_names))
-    library_scene_names = list(filter(lambda name: name in bpy.data.scenes, library_scene_names))
 
     level_scenes = list(map(lambda name: bpy.data.scenes[name], level_scene_names))
     library_scenes = list(map(lambda name: bpy.data.scenes[name], library_scene_names))

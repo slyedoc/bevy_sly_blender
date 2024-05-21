@@ -21,6 +21,7 @@ from .ui.main import BEVY_PT_SidePanel
 from .ui.missing_types import MISSING_TYPES_UL_List
 
 from .operators.add_component import AddComponentOperator
+from .operators.auto_export_gltf import AutoExportGLTF
 from .operators.clear_component_definitions_list import ClearComponentDefinitionsList
 from .operators.copy_component import CopyComponentOperator
 from .operators.fix_component import Fix_Component_Operator
@@ -41,6 +42,9 @@ from .operators.select_object import OT_select_object
 from .operators.toggle_component_visibility import Toggle_ComponentVisibility
 from .operators.tooling_switch import OT_switch_bevy_tooling
 
+
+from .helpers.scenes import SceneSelector
+
 # data
 from .settings import BevySettings
 from .assets_registry import Asset, AssetsRegistry
@@ -52,6 +56,9 @@ from .components_meta import (ComponentMetadata, ComponentsMeta)
 from .auto_export_tracker import AutoExportTracker
 
 classes = [
+    # helpers
+    SceneSelector,
+
     # main
     AssetsRegistry,
     BevySettings,
@@ -62,7 +69,7 @@ classes = [
     ComponentsMeta,
     MissingBevyType, # before ComponentsRegistry
     ComponentsRegistry,   
-    AutoExportTracker,
+    AutoExportTracker, 
 
     #UI
     BEVY_PT_SidePanel,
@@ -70,6 +77,7 @@ classes = [
 
     # operators
     AddComponentOperator,
+    AutoExportGLTF,
     ClearComponentDefinitionsList,
     CopyComponentOperator,
     Fix_Component_Operator,
@@ -95,6 +103,8 @@ classes = [
     OT_select_object,
     Toggle_ComponentVisibility,
     OT_switch_bevy_tooling,
+
+
 ]
 
 @persistent
@@ -113,8 +123,8 @@ def post_save(scene, depsgraph):
 def post_load(file_name):
     bevy = bpy.context.window_manager.bevy
     components_registry = bpy.context.window_manager.components_registry
-    
-    print("\n\nloaded blend file: loading settings\n\n")
+        
+    #print("loaded blend file: loading settings")
     if components_registry is not None:
         components_registry.load_settings()
     bevy.load_settings()
@@ -193,8 +203,8 @@ def unregister():
     bpy.app.handlers.depsgraph_update_post.remove(post_update)
     bpy.app.handlers.save_post.remove(post_save)
 
-# if __name__ == "__main__":
-#      register()
+if __name__ == "__main__":
+    register()
 
 # def update_scene_lists(self, context):                
 #     blenvy = self# context.window_manager.blenvy

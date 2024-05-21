@@ -2,7 +2,21 @@ import bpy
 import os
 import rna_prop_ui
 
+# settings that maybe should just be the default
+EXPORT_MARKED_ASSETS = True
+EXPORT_BLUEPRINTS = True
+EXPORT_MATERIALS_LIBRARY = True
+EXPORT_STATIC_DYNAMIC = True
+EXPORT_SCENE_SETTINGS = True
+CHANGE_DETECTION = True
+
+
+GLTF_EXTENSION = ".glb" #".gltf"
 TEMPSCENE_PREFIX = "__temp_scene"
+
+BLUEPRINTS_PATH = "blueprints"
+LEVELS_PATH = "levels"
+MATERIALS_PATH = "materials"
 
 # fake way to make our operator's changes be visible to the change/depsgraph update handler in gltf_auto_export
 def ping_depsgraph_update(object):

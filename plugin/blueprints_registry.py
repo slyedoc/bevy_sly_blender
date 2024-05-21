@@ -1,18 +1,12 @@
 from types import SimpleNamespace
 import bpy
-import json
-import os
-import uuid
-from pathlib import Path
-from bpy_types import (PropertyGroup)
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
-from .settings import load_settings
 from .helpers.helpers_scenes import get_scenes
 from .helpers.blueprints import blueprints_scan
 
 # this is where we store the information for all available Blueprints
-class BlueprintsRegistry(PropertyGroup):
+class BlueprintsRegistry(bpy.types.PropertyGroup):
     blueprints_data = {}
     blueprints_list = []
 
@@ -49,11 +43,6 @@ class BlueprintsRegistry(PropertyGroup):
         self.blueprints_list.append(blueprint)
 
     def add_blueprints_data(self):
-        print("adding blueprints data")
-        addon_prefs = load_settings(".gltf_auto_export_settings")
-        if addon_prefs is not None: 
-            print("addon_prefs", addon_prefs)
-            addon_prefs["export_marked_assets"] = False
-            addon_prefs = SimpleNamespace(**addon_prefs)
-            [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes(addon_prefs)            
-            self.blueprints_data = blueprints_scan(level_scenes, library_scenes, addon_prefs)
+        [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes()
+        blueprints_data = blueprints_scan(level_scenes, library_scenes)
+        self.blueprints_data = blueprints_data

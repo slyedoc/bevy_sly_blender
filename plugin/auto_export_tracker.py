@@ -40,11 +40,12 @@ class AutoExportTracker(PropertyGroup):
     def save_handler(cls, scene, depsgraph):
         print("saved", bpy.data.filepath)
         # auto_export(changes_per_scene, export_parameters_changed)
-        bpy.ops.export_scenes.auto_gltf(direct_mode= True)
+        bpy.ops.export_scenes.auto_gltf()
 
         # (re)set a few things after exporting
         # reset wether the gltf export paramters were changed since the last save 
         cls.export_params_changed = False
+        
         # reset whether there have been changed objects since the last save 
         cls.changed_objects_per_scene.clear()
         # all our logic is done, mark this as done
@@ -161,15 +162,3 @@ class AutoExportTracker(PropertyGroup):
             #self.enable_change_detection()
         return None
 
-
-def get_auto_exporter_settings():
-    auto_exporter_settings = bpy.data.texts[".gltf_auto_export_settings"] if ".gltf_auto_export_settings" in bpy.data.texts else None
-    if auto_exporter_settings != None:
-        try:
-            auto_exporter_settings = json.loads(auto_exporter_settings.as_string())
-        except:
-            auto_exporter_settings = {}
-    else:
-        auto_exporter_settings = {}
-    
-    return auto_exporter_settings

@@ -43,11 +43,8 @@ from .operators.select_object import OT_select_object
 from .operators.toggle_component_visibility import Toggle_ComponentVisibility
 from .operators.tooling_switch import OT_switch_bevy_tooling
 
-
-from .helpers.scenes import SceneSelector
-
 # data
-from .settings import BevySettings
+from .settings import BevySettings, SceneSelector
 from .assets_registry import Asset, AssetsRegistry
 from .blueprints_registry import BlueprintsRegistry
 from .component_definitions_list import ComponentDefinitionsList
@@ -58,11 +55,12 @@ from .auto_export_tracker import AutoExportTracker
 
 classes = [
     # helpers
-    SceneSelector,
+
 
     # main
     Asset,
     AssetsRegistry,
+    SceneSelector,
     BevySettings,
     BlueprintsRegistry,
     ComponentDefinitionsList,

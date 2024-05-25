@@ -3,7 +3,9 @@ import bpy
 
 from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProperty, PointerProperty, EnumProperty)
 
-from .helpers.scenes import SceneSelector
+class SceneSelector(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty() # type: ignore
+    display: bpy.props.BoolProperty() # type: ignore
 
 # save the to a text datablock
 def save_settings(self, context):

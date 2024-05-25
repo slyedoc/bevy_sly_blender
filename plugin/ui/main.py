@@ -25,7 +25,6 @@ from ..operators.open_assets_folder_browser import OT_OpenAssetsFolderBrowser
 from ..operators.reload_registry import ReloadRegistryOperator
 from ..operators.tooling_switch import OT_switch_bevy_tooling
 
-from ..helpers.assets import get_user_assets
 
 from ..components_meta import do_object_custom_properties_have_missing_metadata, get_bevy_components
 from ..components_registry import ComponentsRegistry
@@ -259,8 +258,6 @@ def draw_invalid_or_unregistered(layout, components_registry: ComponentsRegistry
     operator = col.operator(OT_select_component_name_to_replace.bl_idname, text="", icon="EYEDROPPER") #text="select for rename", 
     operator.component_name = component_name
 
-## ui logic & co
-
 
 class BEVY_PT_SidePanel(bpy.types.Panel):
     bl_idname = "BEVY_PT_SidePanel"
@@ -331,13 +328,13 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                         if scene.name != "Library": # FIXME: hack for testing
                             #get_main_scene_assets_tree(scene, blueprints_data, settings)
 
-                            user_assets = get_user_assets(scene)
+                            user_assets = getattr(scene, 'user_assets', [])
                             row = panel.row()
                             scene_assets_panel = draw_assets(layout=row, name=scene.name, title=f"{scene.name} Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="SCENE", target_name=scene.name)
                             """if scene.name in blueprints_data.blueprint_instances_per_main_scene:
                                 for blueprint_name in blueprints_data.blueprint_instances_per_main_scene[scene.name].keys():
                                     blueprint = blueprints_data.blueprints_per_name[blueprint_name]
-                                    blueprint_assets = get_user_assets(blueprint.collection)
+                                    blueprint_assets = getattr(blueprint.collection, 'user_assets', [])
                                     if scene_assets_panel:
                                         row = scene_assets_panel.row()
                                         draw_assets(layout=row, name=blueprint.name, title=f"{blueprint.name} Assets", asset_registry=asset_registry, assets=blueprint_assets, target_type="BLUEPRINT", target_name=blueprint.name)
@@ -468,13 +465,14 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                             select_blueprint.blueprint_collection_name = blueprint.collection.name
                         select_blueprint.blueprint_scene_name = blueprint.scene.name
 
-                        user_assets = get_user_assets(blueprint.collection)
+                        user_assets = getattr(blueprint.collection, 'user_assets', [])
                         draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
 
                     else:
-                        assets = get_user_assets(blueprint.collection)
+                        user_assets = getattr(blueprint.collection, 'user_assets', [])
                         draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
                         row.label(text="External")
+
             case "SETTINGS":
                 # header, panel = layout.panel("common", default_closed=False)
                 # header.label(text="Common")

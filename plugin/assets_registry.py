@@ -41,7 +41,7 @@ class AssetsRegistry(PropertyGroup):
         return
 
         
-    def add_asset(self, name, type, path, internal): # internal means it cannot be edited by the user, aka auto generated
+    def add_asset(self, name: str, type, path: str, internal): # internal means it cannot be edited by the user, aka auto generated
         in_list = [asset for asset in self.assets_list if (asset["path"] == path)]
         in_list = len(in_list) > 0
         if not in_list:

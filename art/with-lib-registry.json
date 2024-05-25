@@ -2391,6 +2391,8 @@
           "long_name": "Clear",
           "prefixItems": [
             {
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
@@ -2610,6 +2612,30 @@
       "short_name": "Entity",
       "type": "object",
       "typeInfo": "Value"
+    },
+    "bevy_egui::EguiSettings": {
+      "additionalProperties": false,
+      "isComponent": false,
+      "isResource": false,
+      "long_name": "bevy_egui::EguiSettings",
+      "properties": {
+        "default_open_url_target": {
+          "type": {
+            "$ref": "#/$defs/core::option::Option<alloc::string::String>"
+          }
+        },
+        "scale_factor": {
+          "type": {
+            "$ref": "#/$defs/f32"
+          }
+        }
+      },
+      "required": [
+        "scale_factor"
+      ],
+      "short_name": "EguiSettings",
+      "type": "object",
+      "typeInfo": "Struct"
     },
     "bevy_gizmos::aabb::AabbGizmoConfigGroup": {
       "additionalProperties": false,
@@ -5416,6 +5442,7 @@
       "long_name": "bevy_pbr::light::AmbientLight",
       "properties": {
         "brightness": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -5672,6 +5699,7 @@
           }
         },
         "illuminance": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -5756,16 +5784,19 @@
           }
         },
         "intensity": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "radius": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "range": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -6062,6 +6093,7 @@
           }
         },
         "depth_bias": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -6117,6 +6149,8 @@
           }
         },
         "metallic": {
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -6152,11 +6186,15 @@
           }
         },
         "perceptual_roughness": {
+          "maximum": 1.0,
+          "minimum": 0.08900000154972076,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "reflectance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -6694,18 +6732,24 @@
             },
             "blue": {
               "long_name": "blue",
+              "maximum": 360.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "green": {
               "long_name": "green",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "red": {
               "long_name": "red",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
@@ -6733,18 +6777,24 @@
             },
             "blue": {
               "long_name": "blue",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "green": {
               "long_name": "green",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "red": {
               "long_name": "red",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
@@ -6772,18 +6822,24 @@
             },
             "hue": {
               "long_name": "hue",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "lightness": {
               "long_name": "lightness",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "saturation": {
               "long_name": "saturation",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
@@ -6811,18 +6867,24 @@
             },
             "chroma": {
               "long_name": "chroma",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "hue": {
               "long_name": "hue",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
             },
             "lightness": {
               "long_name": "lightness",
+              "maximum": 1.0,
+              "minimum": 0.0,
               "type": {
                 "$ref": "#/$defs/f32"
               }
@@ -7087,21 +7149,25 @@
       "long_name": "bevy_render::view::ColorGrading",
       "properties": {
         "exposure": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "gamma": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "post_saturation": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
         },
         "pre_saturation": {
+          "minimum": 0.0,
           "type": {
             "$ref": "#/$defs/f32"
           }
@@ -8308,6 +8374,43 @@
         "times_finished_this_tick"
       ],
       "short_name": "Timer",
+      "type": "object",
+      "typeInfo": "Struct"
+    },
+    "bevy_time::virt::Virtual": {
+      "additionalProperties": false,
+      "isComponent": false,
+      "isResource": false,
+      "long_name": "bevy_time::virt::Virtual",
+      "properties": {
+        "effective_speed": {
+          "type": {
+            "$ref": "#/$defs/f64"
+          }
+        },
+        "max_delta": {
+          "type": {
+            "$ref": "#/$defs/bevy_utils::Duration"
+          }
+        },
+        "paused": {
+          "type": {
+            "$ref": "#/$defs/bool"
+          }
+        },
+        "relative_speed": {
+          "type": {
+            "$ref": "#/$defs/f64"
+          }
+        }
+      },
+      "required": [
+        "max_delta",
+        "paused",
+        "relative_speed",
+        "effective_speed"
+      ],
+      "short_name": "Virtual",
       "type": "object",
       "typeInfo": "Struct"
     },
@@ -10457,6 +10560,14 @@
       "isResource": false,
       "long_name": "core::ops::Range<f32>",
       "short_name": "Range<f32>",
+      "type": "object",
+      "typeInfo": "Value"
+    },
+    "core::ops::Range<f64>": {
+      "isComponent": false,
+      "isResource": false,
+      "long_name": "core::ops::Range<f64>",
+      "short_name": "Range<f64>",
       "type": "object",
       "typeInfo": "Value"
     },

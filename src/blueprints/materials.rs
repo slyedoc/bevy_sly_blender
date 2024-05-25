@@ -11,7 +11,7 @@ use bevy::{
     },
     gltf::Gltf,
     hierarchy::{Children, Parent},
-    log::debug,
+    log::{debug, info},
     pbr::StandardMaterial,
     reflect::Reflect,
     render::mesh::Mesh,
@@ -42,6 +42,7 @@ pub(crate) fn materials_inject(
     mut commands: Commands,
 ) {
     for (entity, material_info) in material_infos.iter() {
+        debug!("material_info: {:?}", material_info);
         let model_file_name = format!(
             "{}_materials_library.{}",
             &material_info.source, &blueprints_config.format

@@ -92,7 +92,7 @@ impl Default for BlueprintsPlugin {
     fn default() -> Self {
         Self {
             format: GltfFormat::GLB,
-            library_folder: PathBuf::from("models/library"),
+            library_folder: PathBuf::from("blueprints"),
             aabbs: false,
             material_library: false,
             material_library_folder: PathBuf::from("materials"),

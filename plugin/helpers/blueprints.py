@@ -3,18 +3,16 @@ import os
 import json
 import bpy
 
-from types import SimpleNamespace
-
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
+from plugin.assets_registry import AssetsRegistry
 from plugin.settings import BevySettings
 
-from ..util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS, EXPORT_MATERIALS_LIBRARY, GLTF_EXTENSION, LEVELS_PATH, TEMPSCENE_PREFIX
+from ..util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MATERIALS_LIBRARY, GLTF_EXTENSION, LEVELS_PATH, TEMPSCENE_PREFIX
 from .generate_and_export import generate_and_export
-
 from .helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into
-from .scenes import add_scene_property
+from .object_makers import make_empty
 
 @dataclass
 class BlueprintData:
@@ -31,39 +29,9 @@ class BlueprintData:
     external_collection_instances: Dict[str, List[Any]]
     blueprint_name_from_instances: Dict[Any, str]
 
-def find_blueprints_not_on_disk(blueprints, folder_path, extension):
-    not_found_blueprints = []
-    for blueprint in blueprints:
-        gltf_output_path = os.path.join(folder_path, blueprint.name + extension)
-        # print("gltf_output_path", gltf_output_path)
-        found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
-        if not found:
-            not_found_blueprints.append(blueprint)
-    return not_found_blueprints
 
-def check_if_blueprint_on_disk(scene_name, folder_path, extension):
-    gltf_output_path = os.path.join(folder_path, scene_name + extension)
-    found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
-    print("level", scene_name, "found", found, "path", gltf_output_path)
-    return found
 
-def inject_export_path_into_internal_blueprints(internal_blueprints, blueprints_path, gltf_extension):
-    for blueprint in internal_blueprints:
-        blueprint_exported_path = os.path.join(blueprints_path, f"{blueprint.name}{gltf_extension}")
-        blueprint.collection["export_path"] = blueprint_exported_path
-
-def inject_blueprints_list_into_main_scene(scene, blueprints_data, bevy: BevySettings):
-    #project_root_path = getattr(addon_prefs, "project_root_path")
-    #assets_path = getattr(addon_prefs,"assets_path")
-    #levels_path = getattr(addon_prefs,"levels_path")
-    blueprints_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)
-    levels_path = os.path.join(bevy.assets_path, LEVELS_PATH)
-    
-    #export_gltf_extension = getattr(addon_prefs, "export_gltf_extension")
-
-    # print("injecting assets/blueprints data into scene")
-    assets_list_name = f"assets_list_{scene.name}_components"
-    assets_list_data = {}
+def inject_blueprints_list_into_main_scene(scene, blueprints_data: BlueprintData, bevy: BevySettings):
 
     blueprint_instance_names_for_scene = blueprints_data.blueprint_instances_per_main_scene.get(scene.name, None)
     blueprint_assets_list = []
@@ -74,20 +42,51 @@ def inject_blueprints_list_into_main_scene(scene, blueprints_data, bevy: BevySet
                 print("BLUEPRINT", blueprint)
                 blueprint_exported_path = None
                 if blueprint.local:
-                    blueprint_exported_path = os.path.join(blueprints_path, f"{blueprint.name}{export_gltf_extension}")
+                    blueprint_exported_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
                 else:
                     # get the injected path of the external blueprints
                     blueprint_exported_path = blueprint.collection['Export_path'] if 'Export_path' in blueprint.collection else None
                     print("foo", dict(blueprint.collection))
                 if blueprint_exported_path is not None:
                     blueprint_assets_list.append({"name": blueprint.name, "path": blueprint_exported_path, "type": "MODEL", "internal": True})
-                
+    
+    # fetch images/textures
+    # see https://blender.stackexchange.com/questions/139859/how-to-get-absolute-file-path-for-linked-texture-image
+    textures = []
+    for ob in bpy.data.objects:
+        if ob.type == "MESH":
+            for mat_slot in ob.material_slots:
+                if mat_slot.material:
+                    if mat_slot.material.node_tree:
+                        textures.extend([x.image.filepath for x in mat_slot.material.node_tree.nodes if x.type=='TEX_IMAGE'])
+    print("textures", textures)
+
+    # add to the scene
+    scene["assets"] = json.dumps(blueprint_assets_list)            
+    print("blueprint assets", blueprint_assets_list)
+
     assets_list_name = f"assets_{scene.name}"
+    assets_list_data = {"blueprints": json.dumps(blueprint_assets_list), "sounds":[], "images":[]}
     scene["assets"] = json.dumps(blueprint_assets_list)
 
-    print("blueprint assets", blueprint_assets_list)
-    """add_scene_property(scene, assets_list_name, assets_list_data)
-    """
+    add_scene_property(scene, assets_list_name, assets_list_data)
+    assets_registry = bpy.context.window_manager.assets_registry # type: AssetsRegistry
+    for blueprint in blueprint_assets_list:
+        assets_registry.add_asset(**blueprint)
+
+def add_scene_property(scene, property_name, property_data):
+    root_collection = scene.collection
+    scene_property = None
+    for object in scene.objects:
+        if object.name == property_name:
+            scene_property = object
+            break
+    
+    if scene_property is None:
+        scene_property = make_empty(property_name, [0,0,0], [0,0,0], [0,0,0], root_collection)
+
+    for key in property_data.keys():
+        scene_property[key] = property_data[key]
 
 def remove_blueprints_list_from_main_scene(scene):
     assets_list = None
@@ -120,8 +119,7 @@ class Blueprint:
 
 
 # export blueprints
-def export_blueprints(blueprints, blueprints_data, bevy: BevySettings):
-    export_blueprints_path_full = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)
+def export_blueprints(blueprints, blueprints_data: BlueprintData, bevy: BevySettings):
     gltf_export_preferences = bevy.generate_gltf_export_preferences()
     
     try:
@@ -130,7 +128,7 @@ def export_blueprints(blueprints, blueprints_data, bevy: BevySettings):
 
         for blueprint in blueprints:
             print("exporting collection", blueprint.name)
-            gltf_output_path = os.path.join(export_blueprints_path_full, blueprint.name)
+            gltf_output_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH, blueprint.name)
             export_settings = { **gltf_export_preferences, 'use_active_scene': True, 'use_active_collection': True, 'use_active_collection_with_nested':True}
             
             # if we are using the material library option, do not export materials, use placeholder instead
@@ -156,14 +154,10 @@ def export_blueprints(blueprints, blueprints_data, bevy: BevySettings):
 
 
 # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
-def get_blueprints_to_export(changes_per_scene, changed_export_parameters, blueprints_data, bevy: BevySettings):
-    blueprints_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)
+def get_blueprints_to_export(changes_per_scene, changed_export_parameters, blueprints_data : BlueprintData, bevy: BevySettings):
 
     [main_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
-    internal_blueprints = blueprints_data.internal_blueprints
-    blueprints_to_export = internal_blueprints # just for clarity
-
-    # print("change_detection", change_detection, "changed_export_parameters", changed_export_parameters, "changes_per_scene", changes_per_scene)
+    blueprints_to_export = []
     
     # if the export parameters have changed, bail out early
     # we need to re_export everything if the export parameters have been changed
@@ -172,7 +166,15 @@ def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bluep
 
         # first check if all collections have already been exported before (if this is the first time the exporter is run
         # in your current Blender session for example)
-        blueprints_not_on_disk = find_blueprints_not_on_disk(internal_blueprints, blueprints_path, GLTF_EXTENSION)
+        bevy = bpy.context.window_manager.bevy # type: BevySettings
+
+        # check if the blueprints are already on disk
+        blueprints_not_on_disk = []
+        for blueprint in blueprints_data.internal_blueprints:
+            gltf_output_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH, blueprint.name + GLTF_EXTENSION)
+            found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
+            if not found:
+                blueprints_not_on_disk.append(blueprint)
 
         for scene in library_scenes:
             if scene.name in changes_per_scene:
@@ -185,7 +187,8 @@ def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bluep
 
        
         blueprints_to_export =  list(set(changed_blueprints + blueprints_not_on_disk))
-
+    else:
+        blueprints_to_export = blueprints_data.internal_blueprints
 
     # filter out blueprints that are not marked & deal with the different combine modes
     # we check for blueprint & object specific overrides ...

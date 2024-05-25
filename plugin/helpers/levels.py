@@ -7,8 +7,7 @@ from ..util import CHANGE_DETECTION, EXPORT_BLUEPRINTS, EXPORT_STATIC_DYNAMIC, G
 from .generate_and_export import generate_and_export, export_gltf
 from .dynamic import is_object_dynamic, is_object_static
 from .helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into
-from .blueprints import check_if_blueprint_on_disk, inject_blueprints_list_into_main_scene, remove_blueprints_list_from_main_scene
-
+from .blueprints import inject_blueprints_list_into_main_scene, remove_blueprints_list_from_main_scene
 
 # IF collection_instances_combine_mode is not 'split' check for each scene if any object in changes_per_scene has an instance in the scene
 def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode):
@@ -45,17 +44,22 @@ def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, coll
 
 # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
 def get_levels_to_export(changes_per_scene, changed_export_parameters, blueprints_data, bevy: BevySettings):
-    export_levels_path_full = os.path.join(bevy.assets_path, LEVELS_PATH)
-    collection_instances_combine_mode = bevy.collection_instances_combine_mode
+
     [main_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
+ 
+    def check_if_blueprint_on_disk(scene_name: str) -> bool:
+        gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene_name + GLTF_EXTENSION)
+        found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
+        print("level", scene_name, "found", found, "path", gltf_output_path)
+        return found
  
     # determine list of main scenes to export
     # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
     main_scenes_to_export = [scene_name for scene_name in main_scene_names if not CHANGE_DETECTION 
                              or changed_export_parameters 
                              or scene_name in changes_per_scene.keys() 
-                             or changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode) 
-                             or not check_if_blueprint_on_disk(scene_name, export_levels_path_full, GLTF_EXTENSION) ]
+                             or changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, bevy.collection_instances_combine_mode) 
+                             or not check_if_blueprint_on_disk(scene_name) ]
 
     return (main_scenes_to_export)
 

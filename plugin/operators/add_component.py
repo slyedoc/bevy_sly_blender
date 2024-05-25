@@ -19,11 +19,12 @@ class AddComponentOperator(Operator):
 
     def execute(self, context):
         object = context.object
+        component_registry = context.window_manager.components_registry
+        type_infos = component_registry.type_infos
         print("adding component ", self.component_type, "to object  '"+object.name+"'")
     
         has_component_type = self.component_type != ""
         if has_component_type and object != None:
-            type_infos = context.window_manager.components_registry.type_infos
             component_definition = type_infos[self.component_type]
             add_component_to_object(object, component_definition)
 

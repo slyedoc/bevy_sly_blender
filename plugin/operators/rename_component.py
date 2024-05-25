@@ -3,8 +3,7 @@ import bpy
 from bpy_types import Operator
 from bpy.props import (StringProperty)
 
-from plugin.components_registry import ComponentsRegistry
-from plugin.rename_helper import RenameHelper
+from ..rename_helper import RenameHelper
 from ..components_meta import get_bevy_components, rename_component
 
 class OT_rename_component(Operator):
@@ -31,9 +30,7 @@ class OT_rename_component(Operator):
 
     def execute(self, context):
         settings = context.window_manager.bevy_component_rename_helper # type: RenameHelper
-        registry = context.window_manager.components_registry # type: ComponentsRegistry
-        type_infos = registry.type_infos
-        
+    
         original_name = settings.original_name if self.original_name == "" else self.original_name
         new_name = self.new_name
 

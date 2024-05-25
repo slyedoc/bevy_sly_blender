@@ -5,29 +5,27 @@ from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProp
 
 from .helpers.scenes import SceneSelector
 
-def update_scene_lists(self, context):                
-    bevy = context.window_manager.bevy # type: BevySettings
-    # bevy.main_scene_names = [scene.name for scene in bevy.main_scenes]
-    # bevy.library_scene_names = [scene.name for scene in bevy.library_scenes]
-    # upsert_settings(bevy.settings_save_path, bevy.data())
-
+# save the to a text datablock
 def save_settings(self, context):
     bevy = context.window_manager.bevy # type: BevySettings
+
     # TODO: serialized self, stupid manually creating it here
     json_str = json.dumps({ 
         'mode': self.mode,
         'schema_file': self.schema_file,
         'assets_path': self.assets_path,
         'auto_export': self.auto_export,
-        # 'main_scene_names': main_scene_names,
-        # 'library_scene_names': library_scene_names,
+        'main_scene_names': [scene.name for scene in self.main_scenes],
+        'library_scene_names': [scene.name for scene in self.library_scenes],
     })
+
     if bevy.settings_save_path in bpy.data.texts:
         bpy.data.texts[bevy.settings_save_path].clear()
         bpy.data.texts[bevy.settings_save_path].write(json_str)
     else:
         stored_settings = bpy.data.texts.new(bevy.settings_save_path)
-        stored_settings.write(json_str)        
+        stored_settings.write(json_str)
+    return None        
  
 class BevySettings(bpy.types.PropertyGroup):
     settings_save_path = ".bevy_settings" # where to store data in bpy.texts
@@ -62,9 +60,9 @@ class BevySettings(bpy.types.PropertyGroup):
         update= save_settings
     ) # type: ignore
     main_scenes: CollectionProperty(name="main scenes",type=SceneSelector) # type: ignore
-    main_scenes_index: IntProperty(name = "Index for main scenes list", default = 0, update=update_scene_lists) # type: ignore
-    library_scenes: CollectionProperty(name="library scenes", type=SceneSelector) # type: ignore
-    library_scenes_index: IntProperty(name = "Index for library scenes list", default = 0, update=update_scene_lists) # type: ignore    
+    main_scenes_index: IntProperty(name = "Index for main scenes list", default = 0, update= save_settings) # type: ignore
+    library_scenes: CollectionProperty(name="library scenes", type=SceneSelector ) # type: ignore
+    library_scenes_index: IntProperty(name = "Index for library scenes list", default = 0, update= save_settings) # type: ignore    
     collection_instances_combine_mode : EnumProperty(
         name='Collection instances',
         items=(
@@ -88,6 +86,18 @@ class BevySettings(bpy.types.PropertyGroup):
         pass
         #del bpy.types.WindowManager.main_scene
         #del bpy.types.WindowManager.library_scene
+
+    @classmethod 
+    def get_all_modes(cls):
+        # Return a list of all possible mode values
+        return [item[0] for item in cls.__annotations__['mode'].keywords['items']]
+
+    def get_scenes(self):        
+        level_scene_names= list(map(lambda scene: scene.name, self.main_scenes))
+        library_scene_names = list(map(lambda scene: scene.name, self.library_scenes))
+        level_scenes = list(map(lambda name: bpy.data.scenes[name], level_scene_names))
+        library_scenes = list(map(lambda name: bpy.data.scenes[name], library_scene_names))        
+        return [level_scene_names, level_scenes, library_scene_names, library_scenes]
 
     # not sure where i will put this
     def generate_gltf_export_preferences(self): 
@@ -160,7 +170,7 @@ class BevySettings(bpy.types.PropertyGroup):
         return gltf_export_preferences
 
     def load_settings(self):
-        stored_settings = bpy.data.texts[self.settings_save_path] if self.settings_save_path in bpy.data.texts else None
+        stored_settings = bpy.data.texts[self.settings_save_path] if self.settings_save_path in bpy.data.texts else None        
         if stored_settings != None:
             settings =  json.loads(stored_settings.as_string())        
             for prop in ['assets_path', 'schema_file', 'auto_export', 'mode']:
@@ -171,10 +181,12 @@ class BevySettings(bpy.types.PropertyGroup):
                     added = self.main_scenes.add()
                     added.name = name
             if "library_scene_names" in settings:
-                for name in settings["common_main_scene_names"]:
+                for name in settings["library_scene_names"]:
                     added = self.library_scenes.add()
                     added.name = name
 
+        # save the setting back, so its updated if need be, or added if need be
+        save_settings(self, bpy.context)
 
         # main_scene_names = [scene.name for scene in self.main_scenes]
         # library_scene_names = [scene.name for scene in self.library_scenes]

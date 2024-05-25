@@ -81,11 +81,6 @@ def find_component_definition_from_long_name(long_name):
     registry = bpy.context.window_manager.components_registry
     return registry.type_infos.get(long_name, None)
 
-# FIXME: feels a bit heavy duty, should only be done
-# if the components panel is active ?
-def ensure_metadata_for_all_objects():
-    for object in bpy.data.objects:
-        add_metadata_to_components_without_metadata(object)
 
 # returns whether an object has custom properties without matching metadata
 def do_object_custom_properties_have_missing_metadata(object):

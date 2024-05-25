@@ -15,3 +15,6 @@ serde = "1.0.202"
 serde_json = "1.0.117"
 
 bevy-inspector-egui = { version = "0.24", optional = true }
+
+[dev-dependencies]
+bevy_asset_loader = { version = "0.20", features = ["2d","3d","standard_dynamic_assets"] }

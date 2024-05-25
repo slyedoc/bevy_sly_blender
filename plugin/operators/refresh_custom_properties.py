@@ -2,7 +2,7 @@
 import bpy
 from bpy_types import (Operator)
 
-from ..components_meta import apply_customProperty_values_to_object_propertyGroups, apply_propertyGroup_values_to_object_customProperties, ensure_metadata_for_all_objects
+from ..components_meta import apply_customProperty_values_to_object_propertyGroups, apply_propertyGroup_values_to_object_customProperties
 
 class COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_ALL(Operator):
     """Apply registry to ALL objects: update the custom property values of all objects based on their definition, if any"""

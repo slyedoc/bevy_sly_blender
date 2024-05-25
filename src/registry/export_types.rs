@@ -25,11 +25,10 @@ pub fn export_types(world: &mut World) {
 
     let asset_root = world.resource::<AssetRoot>();
     let registry_save_path = Path::join(&asset_root.0, &config.save_path);
-    dbg!(&registry_save_path);
 
     match fs::canonicalize(&registry_save_path) {
-        Ok(full_path) => println!("Full path is: {}", full_path.display()),
-        Err(e) => println!("Error resolving full path: {}", e),
+        Ok(full_path) => info!("Registry path is: {}", full_path.display()),
+        Err(e) => println!("Error resolving Registry path: {}", e),
     }
 
     let writer = File::create(registry_save_path).expect("should have created schema file");

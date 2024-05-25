@@ -5,9 +5,12 @@ import uuid
 
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
+from plugin.propGroups.process_component import process_component
+from plugin.propGroups.utils import update_calback_helper
+
 from .settings import BevySettings
-from .propGroups.prop_groups import generate_propertyGroups_for_components
-from .components_meta import ComponentMetadata, ensure_metadata_for_all_objects
+from .propGroups.prop_groups import update_component
+from .components_meta import ComponentMetadata, add_metadata_to_components_without_metadata
 
 # helper class to store missing bevy types information
 class MissingBevyType(bpy.types.PropertyGroup):
@@ -63,6 +66,7 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         description="unregistered/missing type infos"
     )# type: ignore
     disable_all_object_updates: BoolProperty(name="disable_object_updates", default=False) # type: ignore
+    
     ## file watcher
     watcher_enabled: BoolProperty(name="Watcher_enabled", default=True, update=toggle_watcher)# type: ignore
     watcher_active: BoolProperty(name = "Flag for watcher status", default = False)# type: ignore
@@ -229,17 +233,11 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         #     pass
 
         # del bpy.types.WindowManager.components_registry        
-
-
-    # we load the json once, so we do not need to do it over & over again
-    def load_type_infos(self):
-        print("load type infos")
-        ComponentsRegistry.type_infos = json.loads(self.registry)
     
     def has_type_infos(self):
         return len(self.type_infos.keys()) != 0
 
-    def load_settings(self):
+    def load_schema(self):
         bevy = bpy.context.window_manager.bevy # type: BevySettings
         
         # cleanup previous data if any
@@ -254,8 +252,8 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         
         with open(bevy.schema_file) as f: 
             data = json.load(f) 
-            defs = data["$defs"]
-            self.registry = json.dumps(defs) # FIXME:meh ?
+            defs = data["$defs"]            
+            self.type_infos = defs
 
         # start timer
         if not self.watcher_active and self.watcher_enabled:
@@ -263,9 +261,24 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
             print("registering function", watch_schema)
             bpy.app.timers.register(watch_schema)
 
-        generate_propertyGroups_for_components()
-        ensure_metadata_for_all_objects()
+        # Generate propertyGroups for all components
+        for component_name in self.type_infos:
+            definition = self.type_infos[component_name]
+            is_component = definition['isComponent'] if "isComponent" in definition else False
+            root_property_name = component_name if is_component else None
+            process_component(self, definition, update_calback_helper(definition, update_component, root_property_name), None, [])
 
+        # if we had to add any wrapper types on the fly, process them now
+        for long_name in self.custom_types_to_add:
+            self.type_infos[long_name] = self.custom_types_to_add[long_name]
+        self.custom_types_to_add.clear()
+
+        # ensure metadata for allobjects
+        # FIXME: feels a bit heavy duty, should only be done
+        # if the components panel is active ?
+        for object in bpy.data.objects:
+            add_metadata_to_components_without_metadata(object)
+        
     # we keep a list of component propertyGroup around 
     def register_component_propertyGroup(self, name, propertyGroup):
         self.component_propertyGroups[name] = propertyGroup
@@ -281,10 +294,6 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
     def add_custom_type(self, long_name, type_definition):
         self.custom_types_to_add[long_name] = type_definition
 
-    def process_custom_types(self):
-        for long_name in self.custom_types_to_add:
-            self.type_infos[long_name] = self.custom_types_to_add[long_name]
-        self.custom_types_to_add.clear()
 
     # add an invalid component to the list (long name)
     def add_invalid_component(self, component_name):

@@ -19,6 +19,7 @@ from bpy.app.handlers import persistent
 # one big ui for now while simplifying
 from .ui.main import BEVY_PT_SidePanel
 from .ui.missing_types import MISSING_TYPES_UL_List
+from .ui.scene_list import SCENE_UL_Bevy, SCENES_LIST_OT_actions
 
 from .operators.add_component import AddComponentOperator
 from .operators.auto_export_gltf import AutoExportGLTF
@@ -60,6 +61,7 @@ classes = [
     SceneSelector,
 
     # main
+    Asset,
     AssetsRegistry,
     BevySettings,
     BlueprintsRegistry,
@@ -74,6 +76,8 @@ classes = [
     #UI
     BEVY_PT_SidePanel,
     MISSING_TYPES_UL_List,
+    SCENE_UL_Bevy,
+    SCENES_LIST_OT_actions,
 
     # operators
     AddComponentOperator,
@@ -103,13 +107,12 @@ classes = [
     OT_select_object,
     Toggle_ComponentVisibility,
     OT_switch_bevy_tooling,
-
-
 ]
 
+# Called when basiclly anything changes
 @persistent
 def post_update(scene, depsgraph):
-    print("\n\npost_update\n\n");
+    
     auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
     auto_export_tracker.deps_post_update_handler( scene, depsgraph)
 
@@ -121,13 +124,22 @@ def post_save(scene, depsgraph):
 
 @persistent
 def post_load(file_name):
-    bevy = bpy.context.window_manager.bevy
-    components_registry = bpy.context.window_manager.components_registry
+    bevy = bpy.context.window_manager.bevy # type: BevySettings
+    components_registry = bpy.context.window_manager.components_registry # type: ComponentsRegistry
         
-    #print("loaded blend file: loading settings")
+    print("loaded blend file")
     if components_registry is not None:
-        components_registry.load_settings()
+        components_registry.load_schema()
     bevy.load_settings()
+
+def is_scene_ok(self, scene):
+    print("is_scene_ok", self.name)
+    try:
+        operator = bpy.context.space_data.active_operator
+        return scene.name not in operator.main_scenes and scene.name not in operator.library_scenes
+    except:
+        return True
+        
 
 def register():
     for cls in classes:
@@ -137,14 +149,22 @@ def register():
             pass
             #print(f"{cls.__name__} is already registered. Error: {e}")
     
-    # Instead of having each class register its down global data, I want to see whats out there
+    # Instead of having each class register its down global data, I wanted to see whats out there
+    # may move some back, but gaining some clarity and collasping some of the data 
+    # has been worth it so far
 
     #assets_registory - bpy.types.Scene and bpy.types.Collection didnt exist - not working
     #bpy.types.Scene.user_assets = CollectionProperty(name="user assets", type=Asset)
     #bpy.types.Collection.user_assets = CollectionProperty(name="user assets", type=Asset) 
     bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)                
 
+    # our global settings everyone shares this and should be minimal
     bpy.types.WindowManager.bevy = PointerProperty(type=BevySettings)
+
+    # TODO: just put this in settings?
+    bpy.types.WindowManager.main_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="main scene", description="main_scene_picker", poll=is_scene_ok)
+    bpy.types.WindowManager.library_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="library scene", description="library_scene_picker", poll=is_scene_ok)
+        
     bpy.types.WindowManager.assets_registry = PointerProperty(type=AssetsRegistry)
     bpy.types.WindowManager.blueprints_registry = PointerProperty(type=BlueprintsRegistry)
     bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)    

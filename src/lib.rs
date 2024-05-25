@@ -1,24 +1,22 @@
-use bevy::prelude::*;
+use bevy::{app::PluginGroupBuilder, prelude::*};
 
+mod blueprints;
 mod components;
 mod registry;
-mod blueprints;
 
 pub mod prelude {
-    
-    pub use crate::{
-        BlenderPlugin,
-        components::*,registry::*,blueprints::*};
+    pub use crate::{blueprints::*, components::*, registry::*, BlenderPlugins};
 }
 
+pub struct BlenderPlugins;
 
-pub struct BlenderPlugin;
-impl Plugin for BlenderPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins((
-            registry::ExportRegistryPlugin::default(),
-            components::ComponentsFromGltfPlugin::default(),
-            blueprints::BlueprintsPlugin::default(),
-        ));
+impl PluginGroup for BlenderPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        let mut group = PluginGroupBuilder::start::<Self>();
+        group = group
+            .add(registry::ExportRegistryPlugin::default())
+            .add(components::ComponentsFromGltfPlugin::default())
+            .add(blueprints::BlueprintsPlugin::default());
+        group
     }
 }

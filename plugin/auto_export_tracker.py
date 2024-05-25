@@ -49,7 +49,7 @@ class AutoExportTracker(PropertyGroup):
         # reset whether there have been changed objects since the last save 
         cls.changed_objects_per_scene.clear()
         # all our logic is done, mark this as done
-
+    
     @classmethod
     def deps_post_update_handler(cls, scene, depsgraph):
         # print("change detection enabled", cls.change_detection_enabled)

@@ -84,7 +84,7 @@ def process_component(registry, definition, update, extras=None, nesting = [], n
     registry.register_component_propertyGroup(property_group_name, property_group_pointer)
 
     return (property_group_pointer, property_group_class)
-                
+
 def property_group_from_infos(property_group_name, property_group_parameters):
     # print("creating property group", property_group_name)
     property_group_class = type(property_group_name, (PropertyGroup,), property_group_parameters)

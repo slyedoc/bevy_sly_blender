@@ -2,12 +2,11 @@ import os
 import bpy
 from pathlib import Path
 
-from plugin.settings import BevySettings
-
+from ..settings import BevySettings
 from ..util import CHANGE_DETECTION, EXPORT_BLUEPRINTS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, TEMPSCENE_PREFIX
 from .generate_and_export import generate_and_export, export_gltf
 from .dynamic import is_object_dynamic, is_object_static
-from .helpers_scenes import get_scenes, clear_hollow_scene, copy_hollowed_collection_into
+from .helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into
 from .blueprints import check_if_blueprint_on_disk, inject_blueprints_list_into_main_scene, remove_blueprints_list_from_main_scene
 
 
@@ -46,27 +45,22 @@ def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, coll
 
 # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
 def get_levels_to_export(changes_per_scene, changed_export_parameters, blueprints_data, bevy: BevySettings):
-    export_gltf_extension = GLTF_EXTENSION
     export_levels_path_full = os.path.join(bevy.assets_path, LEVELS_PATH)
-
-    change_detection = CHANGE_DETECTION
     collection_instances_combine_mode = bevy.collection_instances_combine_mode
-
-    [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes()
+    [main_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
  
     # determine list of main scenes to export
     # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
-    main_scenes_to_export = [scene_name for scene_name in main_scene_names if not change_detection 
+    main_scenes_to_export = [scene_name for scene_name in main_scene_names if not CHANGE_DETECTION 
                              or changed_export_parameters 
                              or scene_name in changes_per_scene.keys() 
                              or changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode) 
-                             or not check_if_blueprint_on_disk(scene_name, export_levels_path_full, export_gltf_extension) ]
+                             or not check_if_blueprint_on_disk(scene_name, export_levels_path_full, GLTF_EXTENSION) ]
 
     return (main_scenes_to_export)
 
 
 def export_main_scene(scene, blueprints_data, bevy: BevySettings): 
-
     gltf_export_preferences = bevy.generate_gltf_export_preferences()
     export_settings = { **gltf_export_preferences, 
                        'use_active_scene': True, 
@@ -77,46 +71,42 @@ def export_main_scene(scene, blueprints_data, bevy: BevySettings):
                        'export_apply':True
                        }
     gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene.name)
+    print("exporting scene", scene.name,"to", gltf_output_path + GLTF_EXTENSION)    
 
     if EXPORT_BLUEPRINTS : 
-        #inject_blueprints_list_into_main_scene(scene, blueprints_data, addon_prefs)
-        return
+        inject_blueprints_list_into_main_scene(scene, blueprints_data, bevy)
+
         if EXPORT_STATIC_DYNAMIC:
             #print("SPLIT STATIC AND DYNAMIC")
             # first export static objects
             generate_and_export(
-                addon_prefs, 
+                export_settings, 
+                gltf_output_path,
                 temp_scene_name=TEMPSCENE_PREFIX,
-                export_settings=export_settings,
-                gltf_output_path=gltf_output_path,
-                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data, filter=is_object_static, addon_prefs=addon_prefs),
-                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=scene.collection, temp_scene=temp_scene, **params)
+                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data, filter=is_object_static),
+                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(temp_scene, scene.collection)
             )
 
             # then export all dynamic objects
             gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene.name + "_dynamic")
             generate_and_export(
-                addon_prefs, 
+                export_settings, 
+                gltf_output_path,
                 temp_scene_name=TEMPSCENE_PREFIX,
-                export_settings=export_settings,
-                gltf_output_path=gltf_output_path,
-                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data, filter=is_object_dynamic, addon_prefs=addon_prefs),
-                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=scene.collection, temp_scene=temp_scene, **params)
+                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data, filter=is_object_dynamic),
+                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=scene.collection, temp_scene=temp_scene)
             )
 
         else:
             #print("NO SPLIT")
             generate_and_export(
-                addon_prefs, 
-                temp_scene_name=TEMPSCENE_PREFIX,
-                export_settings=export_settings,
-                gltf_output_path=gltf_output_path,
-                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data, addon_prefs=addon_prefs),
-                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=scene.collection, temp_scene=temp_scene, **params)
+                export_settings, 
+                gltf_output_path,
+                TEMPSCENE_PREFIX,                
+                tempScene_filler= lambda temp_collection: copy_hollowed_collection_into(scene.collection, temp_collection, blueprints_data=blueprints_data),
+                tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=scene.collection, temp_scene=temp_scene)
             )
-
     else:
-        print("       exporting gltf to", gltf_output_path, ".gltf/glb")
         export_gltf(gltf_output_path, export_settings)
 
     remove_blueprints_list_from_main_scene(scene)

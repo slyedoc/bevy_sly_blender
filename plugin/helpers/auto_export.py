@@ -8,12 +8,10 @@ from plugin.blueprints_registry import BlueprintsRegistry
 from plugin.settings import BevySettings
 from plugin.util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_BLUEPRINTS, EXPORT_MATERIALS_LIBRARY, EXPORT_SCENE_SETTINGS, GLTF_EXTENSION, LEVELS_PATH
 
-from .helpers_scenes import (get_scenes, )
 from .levels import get_levels_to_export, export_main_scene
 from .blueprints import export_blueprints, get_blueprints_to_export
 from .export_materials import cleanup_materials, export_materials
 from .object_makers import make_empty
-from .blueprints import blueprints_scan,  inject_export_path_into_internal_blueprints
 
 def ambient_color_to_component(world):
     color = None
@@ -62,22 +60,22 @@ def get_standard_exporter_settings():
 def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings):
     blueprints_registry = bpy.context.window_manager.blueprints_registry # type: BlueprintsRegistry
    
+    [level_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
+
     # have the export parameters (not auto export, just gltf export) have changed: if yes (for example switch from glb to gltf, compression or not, animations or not etc), we need to re-export everything
     print ("changed_export_parameters", changed_export_parameters)
     try:
-        [main_scene_names, level_scenes, library_scene_names, library_scenes] = get_scenes()
-
-        blueprints_data = blueprints_scan(level_scenes, library_scenes)
-        blueprints_per_scene = blueprints_data.blueprints_per_scenes
-        internal_blueprints = [blueprint.name for blueprint in blueprints_data.internal_blueprints]
-        external_blueprints = [blueprint.name for blueprint in blueprints_data.external_blueprints]
+        # update the blueprints registry
+        blueprints_registry.scan()
+        blueprints_data =  blueprints_registry.blueprints_data
 
         # we inject the blueprints export path
-        blueprints_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH)           
-        inject_export_path_into_internal_blueprints(internal_blueprints=blueprints_data.internal_blueprints, blueprints_path=blueprints_path, gltf_extension=GLTF_EXTENSION)
+        for blueprint in blueprints_data.internal_blueprints:
+            blueprint_exported_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
+            blueprint.collection["export_path"] = blueprint_exported_path           
+
         for blueprint in blueprints_data.blueprints:
             blueprints_registry.add_blueprint(blueprint)
-        #bpy.context.window_manager.blueprints_registry.add_blueprints_data()
 
         # TODO: IMPORTANT: this is where custom components are injected        
         if EXPORT_SCENE_SETTINGS:
@@ -133,9 +131,9 @@ def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings
             print("-------------------------------")
             #print("collections:               all:", collections)
             #print("collections: not found on disk:", collections_not_on_disk)
-            print("BLUEPRINTS:    local/internal:", internal_blueprints)
-            print("BLUEPRINTS:          external:", external_blueprints)
-            print("BLUEPRINTS:         per_scene:", blueprints_per_scene)
+            print("BLUEPRINTS:    local/internal:", [blueprint.name for blueprint in blueprints_data.internal_blueprints])
+            print("BLUEPRINTS:          external:", [blueprint.name for blueprint in blueprints_data.external_blueprints])
+            print("BLUEPRINTS:         per_scene:", blueprints_data.blueprints_per_scenes)
             print("-------------------------------")
             print("BLUEPRINTS:          to export:", [blueprint.name for blueprint in blueprints_to_export])
             print("-------------------------------")
@@ -150,7 +148,6 @@ def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings
             if len(main_scenes_to_export) > 0:
                 print("export MAIN scenes")
                 for scene_name in main_scenes_to_export:
-                    print("     exporting scene:", scene_name)
                     export_main_scene(bpy.data.scenes[scene_name], blueprints_data, bevy)
 
             # now deal with blueprints/collections
@@ -169,7 +166,7 @@ def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings
                 cleanup_materials(blueprints_data.blueprint_names, library_scenes)
 
         else:
-            for scene_name in main_scene_names:
+            for scene_name in level_scene_names:
                 export_main_scene(bpy.data.scenes[scene_name], blueprints_data, bevy)
 
     except Exception as error:
@@ -182,11 +179,9 @@ def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings
 
     finally:
         # FIXME: error handling ? also redundant
-        [main_scene_names, main_scenes, library_scene_names, library_scenes] = get_scenes()
-
         if EXPORT_SCENE_SETTINGS:
             # TODO: IMPORTANT: this where those custom components are removed
-                for scene in main_scenes:
+                for scene in level_scenes:
                     lighting_components_name = f"lighting_components_{scene.name}"
                     lighting_components = bpy.data.objects.get(lighting_components_name, None)
                     if lighting_components:

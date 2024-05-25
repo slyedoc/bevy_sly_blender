@@ -2,14 +2,14 @@ import bpy
 import os
 import rna_prop_ui
 
-# settings that maybe should just be the default
+# TODO: settings that maybe should just be the default
+# can move to setttings if really needed
 EXPORT_MARKED_ASSETS = True
 EXPORT_BLUEPRINTS = True
 EXPORT_MATERIALS_LIBRARY = True
-EXPORT_STATIC_DYNAMIC = True
+EXPORT_STATIC_DYNAMIC = False # dont use this yet
 EXPORT_SCENE_SETTINGS = True
 CHANGE_DETECTION = True
-
 
 GLTF_EXTENSION = ".glb" #".gltf"
 TEMPSCENE_PREFIX = "__temp_scene"

@@ -1,7 +1,6 @@
 import json
 import bpy
 
-from plugin.settings import BevySettings
 from .object_makers import (make_empty)
 
 
@@ -151,7 +150,9 @@ def duplicate_object(object, parent, combine_mode, destination_collection, bluep
 
 # copies the contents of a collection into another one while replacing library instances with empties
 def copy_hollowed_collection_into(source_collection, destination_collection, parent_empty=None, filter=None, blueprints_data=None):
-    bevy = bpy.context.window_manager.bevy # type: BevySettings
+    # TODO: not importing BevySettings for looped imports
+    bevy = bpy.context.window_manager.bevy # type: ignore 
+
     collection_instances_combine_mode = bevy.collection_instances_combine_mode
 
     for object in source_collection.objects:

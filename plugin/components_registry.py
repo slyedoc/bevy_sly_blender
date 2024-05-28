@@ -77,16 +77,13 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         max=10,
         default=1
     )# type: ignore
-
     schemaTimeStamp: StringProperty(
         name="last timestamp of schema file",
         description="",
         default=""
     )# type: ignore
-
     missing_types_list: CollectionProperty(name="missing types list", type=MissingBevyType)# type: ignore
     missing_types_list_index: IntProperty(name = "Index for missing types list", default = 0)# type: ignore
-
     blender_property_mapping = {
         "bool": dict(type=BoolProperty, presets=dict()),
 
@@ -138,8 +135,6 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         'bevy_utils::Uuid':  dict(type=StringProperty, presets=dict()),
 
     }
-
-
     value_types_defaults = {
         "string":" ",
         "boolean": True,
@@ -238,6 +233,7 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         return len(self.type_infos.keys()) != 0
 
     def load_schema(self):
+        print("\n\nloading schema file\n\n")
         bevy = bpy.context.window_manager.bevy # type: BevySettings
         
         # cleanup previous data if any
@@ -249,7 +245,7 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         self.component_propertyGroups.clear()
         self.custom_types_to_add.clear()
         self.invalid_components.clear()
-        
+              
         with open(bevy.schema_file) as f: 
             data = json.load(f) 
             defs = data["$defs"]            
@@ -258,7 +254,6 @@ class ComponentsRegistry(bpy.types.PropertyGroup):
         # start timer
         if not self.watcher_active and self.watcher_enabled:
             self.watcher_active = True
-            print("registering function", watch_schema)
             bpy.app.timers.register(watch_schema)
 
         # Generate propertyGroups for all components

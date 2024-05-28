@@ -5,7 +5,7 @@ use bevy::utils::HashMap;
 use ron::Value;
 use serde::de::DeserializeSeed;
 
-use super::capitalize_first_letter;
+
 
 pub fn ronstring_to_reflect_component(
     ron_string: &str,
@@ -132,4 +132,8 @@ fn bevy_components_string_to_components(
             warn!("no type registration for {}", key);
         }
     }
+}
+
+fn capitalize_first_letter(s: &str) -> String {
+    s[0..1].to_uppercase() + &s[1..]
 }

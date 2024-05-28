@@ -30,62 +30,8 @@ from ..components_meta import do_object_custom_properties_have_missing_metadata,
 from ..components_registry import ComponentsRegistry
 from ..component_definitions_list import ComponentDefinitionsList
 from ..settings import BevySettings
-from ..blueprints_registry import BlueprintsRegistry
-from ..assets_registry import AssetsRegistry
+#from ..assets_registry import AssetsRegistry
 from ..rename_helper import RenameHelper
-
-## assets ui
-def draw_assets(layout, name, title, asset_registry, target_type, target_name, editable=True, user_assets= [], generated_assets = []):
-    header, panel = layout.box().panel(f"assets{name}", default_closed=False)
-    header.label(text=title)
-
-    # disabled for now
-    # if panel:
-    #     if editable:
-    #         row = panel.row()
-    #         row.prop(asset_registry, "asset_name_selector", text="")
-    #         row.prop(asset_registry, "asset_type_selector", text="")
-    #         asset_selector = row.operator(operator="asset.open_filebrowser", text="", icon="FILE_FOLDER")
-            
-    #         if asset_registry.asset_type_selector == 'IMAGE':
-    #             asset_selector.filter_glob = '*.jpg;*.jpeg;*.png;*.bmp'
-    #         if asset_registry.asset_type_selector == 'MODEL':
-    #             asset_selector.filter_glob="*.glb;*.gltf"
-    #         if asset_registry.asset_type_selector == 'TEXT':
-    #             asset_selector.filter_glob="*.txt;*.md;*.ron;*.json"
-    #         if asset_registry.asset_type_selector == 'AUDIO':
-    #             asset_selector.filter_glob="*.mp3;*.wav;*.flac"
-
-    #         add_asset = row.operator(operator="bevyassets.add", text="", icon="ADD")
-    #         add_asset.target_type = target_type
-    #         add_asset.target_name = target_name
-    #         add_asset.asset_name = asset_registry.asset_name_selector
-    #         add_asset.asset_type = asset_registry.asset_type_selector
-    #         add_asset.asset_path = asset_registry.asset_path_selector
-    #     panel.separator()
-
-    #     for asset in user_assets:
-    #         row = panel.row()
-    #         row.prop(asset, "name", text="")
-    #         #row.prop(asset, "path", text="")
-    #         row.label(text=asset.path)
-    #         asset_selector = row.operator(operator="asset.open_filebrowser", text="", icon="FILE_FOLDER")
-
-    #         remove_asset = row.operator(operator="bevyassets.remove", text="", icon="TRASH")
-    #         remove_asset.target_type = target_type
-    #         remove_asset.target_name = target_name
-    #         remove_asset.asset_path = asset.path
-    #         """if not asset["internal"] and editable:
-    #             remove_asset = row.operator(operator="bevyassets.remove", text="", icon="TRASH")
-    #             remove_asset.target_type = target_type
-    #             remove_asset.target_name = target_name
-    #             remove_asset.asset_path = asset["path"]
-    #         else:
-    #             row.label(text="")"""
-    #     for asset in generated_assets:
-    #         pass
-
-    return panel
 
 def draw_propertyGroup( propertyGroup, layout, nesting =[], rootName=None):
     is_enum = getattr(propertyGroup, "with_enum")
@@ -274,8 +220,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         
         # get all the data
         bevy = context.window_manager.bevy # type: BevySettings
-        asset_registry = context.window_manager.assets_registry # type: AssetsRegistry
-        blueprints_registry = context.window_manager.blueprints_registry # type: BlueprintsRegistry
+        #asset_registry = context.window_manager.assets_registry # type: AssetsRegistry        
         #blueprints_data = blueprints_registry.blueprints_data
         components_registry = context.window_manager.components_registry # type: ComponentsRegistry        
         components_list = context.window_manager.components_list # type: ComponentDefinitionsList
@@ -320,25 +265,25 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 header, panel = layout.box().panel(f"assets{name}", default_closed=False)
                 header.label(text="World/Level Assets")
 
-                settings = {"blueprints_path": "blueprints", "export_gltf_extension": ".glb"}
-                settings = SimpleNamespace(**settings)
+                # settings = {"blueprints_path": "blueprints", "export_gltf_extension": ".glb"}
+                # settings = SimpleNamespace(**settings)
 
-                if panel:
-                    for scene in bpy.data.scenes:
-                        if scene.name != "Library": # FIXME: hack for testing
+                #if panel:
+                    #for scene in bpy.data.scenes:
+                        #if scene.name != "Library": # FIXME: hack for testing
                             #get_main_scene_assets_tree(scene, blueprints_data, settings)
 
-                            user_assets = getattr(scene, 'user_assets', [])
-                            row = panel.row()
-                            scene_assets_panel = draw_assets(layout=row, name=scene.name, title=f"{scene.name} Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="SCENE", target_name=scene.name)
-                            """if scene.name in blueprints_data.blueprint_instances_per_main_scene:
-                                for blueprint_name in blueprints_data.blueprint_instances_per_main_scene[scene.name].keys():
-                                    blueprint = blueprints_data.blueprints_per_name[blueprint_name]
-                                    blueprint_assets = getattr(blueprint.collection, 'user_assets', [])
-                                    if scene_assets_panel:
-                                        row = scene_assets_panel.row()
-                                        draw_assets(layout=row, name=blueprint.name, title=f"{blueprint.name} Assets", asset_registry=asset_registry, assets=blueprint_assets, target_type="BLUEPRINT", target_name=blueprint.name)
-        """
+                            #user_assets = getattr(scene, 'user_assets', [])
+                            #row = panel.row()
+                            #scene_assets_panel = draw_assets(layout=row, name=scene.name, title=f"{scene.name} Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="SCENE", target_name=scene.name)
+        #                     """if scene.name in blueprints_data.blueprint_instances_per_main_scene:
+        #                         for blueprint_name in blueprints_data.blueprint_instances_per_main_scene[scene.name].keys():
+        #                             blueprint = blueprints_data.blueprints_per_name[blueprint_name]
+        #                             blueprint_assets = getattr(blueprint.collection, 'user_assets', [])
+        #                             if scene_assets_panel:
+        #                                 row = scene_assets_panel.row()
+        #                                 draw_assets(layout=row, name=blueprint.name, title=f"{blueprint.name} Assets", asset_registry=asset_registry, assets=blueprint_assets, target_type="BLUEPRINT", target_name=blueprint.name)
+        # """
             case "COMPONENTS":        
                 name = context.object.name if context.object != None else ''
                 row.label(text="Components For "+ name)
@@ -466,11 +411,11 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                         select_blueprint.blueprint_scene_name = blueprint.scene.name
 
                         user_assets = getattr(blueprint.collection, 'user_assets', [])
-                        draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
+                        #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
 
                     else:
                         user_assets = getattr(blueprint.collection, 'user_assets', [])
-                        draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
+                        #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
                         row.label(text="External")
 
             case "SETTINGS":

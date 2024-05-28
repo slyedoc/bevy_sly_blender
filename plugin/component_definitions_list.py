@@ -1,6 +1,8 @@
 import bpy
 from bpy.props import (StringProperty)
 
+from plugin.components_registry import ComponentsRegistry
+
 # this one is for UI only, and its inner list contains a useable list of shortnames of components
 class ComponentDefinitionsList(bpy.types.PropertyGroup):
 
@@ -10,9 +12,9 @@ class ComponentDefinitionsList(bpy.types.PropertyGroup):
     def add_component_to_ui_list(self, context):
         #print("add components to ui_list")
         items = []
-        type_infos = context.window_manager.components_registry.type_infos
-        for long_name in type_infos.keys():
-            definition = type_infos[long_name]
+        cr = context.window_manager.components_registry # type: ComponentsRegistry
+        for long_name in cr.type_infos.keys():
+            definition = cr.type_infos[long_name]
             short_name = definition["short_name"]
             is_component = definition['isComponent']  if "isComponent" in definition else False
 

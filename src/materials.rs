@@ -11,13 +11,13 @@ use bevy::{
     },
     gltf::Gltf,
     hierarchy::{Children, Parent},
-    log::{debug, info},
+    log::debug,
     pbr::StandardMaterial,
     reflect::Reflect,
     render::mesh::Mesh,
 };
 
-use crate::blueprints::{AssetLoadTracker, AssetsToLoad, BluePrintsConfig};
+use crate::{AssetLoadTracker, AssetsToLoad, BlenderPluginConfig};
 
 #[derive(Component, Reflect, Default, Debug)]
 #[reflect(Component)]
@@ -36,7 +36,7 @@ pub(crate) struct BlueprintMaterialAssetsNotLoaded;
 
 /// system that injects / replaces materials from material library
 pub(crate) fn materials_inject(
-    blueprints_config: ResMut<BluePrintsConfig>,
+    blueprints_config: ResMut<BlenderPluginConfig>,
     material_infos: Query<(Entity, &MaterialInfo), Added<MaterialInfo>>,
     asset_server: Res<AssetServer>,
     mut commands: Commands,
@@ -125,7 +125,7 @@ pub(crate) fn check_for_material_loaded(
 
 /// system that injects / replaces materials from material library
 pub(crate) fn materials_inject2(
-    mut blueprints_config: ResMut<BluePrintsConfig>,
+    mut blueprints_config: ResMut<BlenderPluginConfig>,
     material_infos: Query<
         (&MaterialInfo, &Children),
         (

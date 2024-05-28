@@ -45,8 +45,6 @@ from .operators.tooling_switch import OT_switch_bevy_tooling
 
 # data
 from .settings import BevySettings, SceneSelector
-from .assets_registry import Asset, AssetsRegistry
-from .blueprints_registry import BlueprintsRegistry
 from .component_definitions_list import ComponentDefinitionsList
 from .components_registry import MissingBevyType, ComponentsRegistry, watch_schema
 from .rename_helper import RenameHelper
@@ -58,11 +56,10 @@ classes = [
 
 
     # main
-    Asset,
-    AssetsRegistry,
+    #Asset,
+    #AssetsRegistry,
     SceneSelector,
-    BevySettings,
-    BlueprintsRegistry,
+    BevySettings,    
     ComponentDefinitionsList,
     RenameHelper,
     ComponentMetadata,
@@ -162,15 +159,13 @@ def register():
     # TODO: just put this in settings?
     bpy.types.WindowManager.main_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="main scene", description="main_scene_picker", poll=is_scene_ok)
     bpy.types.WindowManager.library_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="library scene", description="library_scene_picker", poll=is_scene_ok)
-        
-    bpy.types.WindowManager.assets_registry = PointerProperty(type=AssetsRegistry)
-    bpy.types.WindowManager.blueprints_registry = PointerProperty(type=BlueprintsRegistry)
-    bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)    
+
+    bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)
     bpy.types.WindowManager.components_registry = PointerProperty(type=ComponentsRegistry)
     bpy.types.WindowManager.bevy_component_rename_helper = bpy.props.PointerProperty(type=RenameHelper)
     bpy.types.WindowManager.components_rename_progress = bpy.props.FloatProperty(default=-1.0) #bpy.props.PointerProperty(type=RenameHelper)
     bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
-                
+
     bpy.app.handlers.load_post.append(post_load)    
     bpy.app.handlers.depsgraph_update_post.append(post_update)
     bpy.app.handlers.save_post.append(post_save)
@@ -188,8 +183,8 @@ def unregister():
     del bpy.types.Object.components_meta
     
     del bpy.types.WindowManager.bevy
-    del bpy.types.WindowManager.assets_registry
-    del bpy.types.WindowManager.blueprints_registry
+    #del bpy.types.WindowManager.assets_registry
+    #del bpy.types.WindowManager.blueprints_registry
     del bpy.types.WindowManager.components_list
     del bpy.types.WindowManager.bevy_component_rename_helper
     del bpy.types.WindowManager.components_rename_progress
@@ -223,20 +218,3 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-
-# def update_scene_lists(self, context):                
-#     blenvy = self# context.window_manager.blenvy
-#     blenvy.main_scene_names = [scene.name for scene in blenvy.main_scenes] # FIXME: unsure
-#     blenvy.library_scene_names = [scene.name for scene in blenvy.library_scenes] # FIXME: unsure
-#     upsert_settings(blenvy.settings_save_path, {"common_main_scene_names": [scene.name for scene in blenvy.main_scenes]})
-#     upsert_settings(blenvy.settings_save_path, {"common_library_scene_names": [scene.name for scene in blenvy.library_scenes]})
-
-# def update_asset_folders(self, context):
-#     blenvy = context.window_manager.blenvy
-#     asset_path_names = ['project_root_path', 'assets_path', 'blueprints_path', 'levels_path', 'materials_path']
-#     for asset_path_name in asset_path_names:
-#         upsert_settings(blenvy.settings_save_path, {asset_path_name: getattr(blenvy, asset_path_name)})
-
-# def update_mode(self, context):
-#     blenvy = self # context.window_manager.blenvy
-#     upsert_settings(blenvy.settings_save_path, {"mode": blenvy.mode })

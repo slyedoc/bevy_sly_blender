@@ -1,31 +1,28 @@
 use bevy::{
+    prelude::*,
     ecs::{
         reflect::{AppTypeRegistry, ReflectComponent, ReflectResource},
         world::World,
     },
-    prelude::*,
     reflect::{TypeInfo, TypeRegistration, VariantInfo},
 };
-use std::{fs::{self, File}, path::Path};
-
-// use bevy::log::info;
-// use bevy::ecs::{
-//     reflect::{AppTypeRegistry, ReflectComponent, ReflectResource},
-//     world::World,
-// };
-// use bevy_reflect::{TypeInfo, TypeRegistration, VariantInfo}; // TypePath // DynamicTypePath
+use std::{fs::{self, File}, path::{Path, PathBuf}};
 use serde_json::{json, Map, Value};
 
-use crate::registry::{AssetRoot, ExportComponentsConfig};
+use crate::BlenderPluginConfig;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Resource)]
+pub struct AssetRoot(pub PathBuf);
+
 
 pub fn export_types(world: &mut World) {
     let config = world
-        .get_resource::<ExportComponentsConfig>()
+        .get_resource::<BlenderPluginConfig>()
         .expect("ExportComponentsConfig should exist at this stage");
 
     let asset_root = world.resource::<AssetRoot>();
     let registry_save_path = Path::join(&asset_root.0, &config.save_path);
-
+    dbg!(&registry_save_path);
     match fs::canonicalize(&registry_save_path) {
         Ok(full_path) => info!("Registry path is: {}", full_path.display()),
         Err(e) => println!("Error resolving Registry path: {}", e),

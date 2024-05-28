@@ -1,7 +1,8 @@
 use bevy::{gltf::Gltf, prelude::*, utils::HashMap};
 use bevy_asset_loader::prelude::*;
+
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_sly_blender::prelude::*;
-use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
 
 // App state to manage loading
 #[derive(Default, States, Debug, Hash, PartialEq, Eq, Clone)]
@@ -28,11 +29,11 @@ fn main() {
             DefaultPlugins,
             WorldInspectorPlugin::default(),
             // our plugin, can use set to customize if needed
-            BlenderPlugins.set(ExportRegistryPlugin {
+            BlenderPlugin {
                 // this is relative to the assets folder
                 save_path: "../art/with-lib-registry.json".into(),
                 ..default()
-            }),
+            },
         ))
         .init_state::<AppState>()
         .add_loading_state(

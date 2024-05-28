@@ -1,28 +1,29 @@
 use bevy::{
-    core::Name,
-    ecs::{
-        entity::Entity,
-        query::{Added, Without},
-        reflect::{AppTypeRegistry, ReflectComponent},
-        world::World,
-    },
-    gltf::GltfExtras,
-    hierarchy::Parent,
-    log::debug,
-    reflect::{Reflect, TypeRegistration},
-    utils::HashMap,
+    ecs::{component::Component, reflect::ReflectComponent, world::World}, gltf::GltfExtras, prelude::*, reflect::{Reflect, TypeRegistration}, utils::HashMap
 };
+use crate::{ronstring_to_reflect_component, GltfBlueprintsSet };
 
-use crate::components::{ronstring_to_reflect_component, GltfProcessed};
 
-/// main function: injects components into each entity in gltf files that have `gltf_extras`, using reflection
+pub fn plugin(app: &mut App) {
+    app
+        // rest
+        .register_type::<GltfProcessed>()
+        .add_systems(
+            Update,
+            (add_components_from_gltf_extras).in_set(GltfBlueprintsSet::Injection),
+        );
+}
+
+/// this is a flag component to tag a processed gltf, to avoid processing things multiple times
+#[derive(Component, Reflect, Default, Debug)]
+#[reflect(Component)]
+pub struct GltfProcessed;
+
 pub fn add_components_from_gltf_extras(world: &mut World) {
     let mut extras =
         world.query_filtered::<(Entity, &Name, &GltfExtras, &Parent), (Added<GltfExtras>, Without<GltfProcessed>)>();
     let mut entity_components: HashMap<Entity, Vec<(Box<dyn Reflect>, TypeRegistration)>> =
         HashMap::new();
-
-    // let gltf_components_config = world.resource::<GltfComponentsConfig>();
 
     for (entity, name, extra, parent) in extras.iter(world) {
         debug!(

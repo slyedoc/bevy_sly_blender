@@ -2,8 +2,8 @@ import os
 import bpy
 from pathlib import Path
 
-from plugin.settings import BevySettings
-from plugin.util import MATERIALS_PATH
+from ..settings import BevySettings
+from ..util import MATERIALS_PATH
 
 from .collections import (traverse_tree)
 from .object_makers import make_cube

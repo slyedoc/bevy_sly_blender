@@ -2,6 +2,10 @@ use bevy::{gltf::Gltf, prelude::*};
 use bevy_asset_loader::prelude::*;
 use bevy_sly_blender::prelude::*;
 
+// TODO: this works with art/basic.blend, but you have to run this first to generate the registry, which works but errors due to missing assets.
+// then save that art/basic.blend then run this again
+// what would be ideal 
+
 // App state to manage loading
 #[derive(Default, States, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum AppState {
@@ -22,11 +26,10 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             // our plugin, can use set to customize if needed
-            BlenderPlugins.set(ExportRegistryPlugin {
-                // this is relative to the assets folder
+            BlenderPlugin {
                 save_path: "../art/basic-registry.json".into(),
                 ..default()
-            }),
+            },
         ))
         .init_state::<AppState>()
         .add_loading_state(

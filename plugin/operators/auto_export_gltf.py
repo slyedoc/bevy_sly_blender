@@ -6,27 +6,6 @@ from ..auto_export_tracker import AutoExportTracker
 from ..settings import BevySettings
 from ..helpers.auto_export import auto_export
 
-# AutoExportGltfPreferenceNames = [
-#     'will_save_settings',
-#     'show_general_settings',
-#     'auto_export',
-#     'assets_path',
-#     'export_scene_settings',
-#     'show_change_detection_settings',
-#     'change_detection',
-#     'show_scene_settings',
-#     'main_scenes',
-#     'library_scenes',
-#     'main_scenes_index',
-#     'library_scenes_index',
-#     'main_scene_names',
-#     'library_scene_names',
-#     'show_blueprint_settings',
-#     'export_blueprints',
-#     'collection_instances_combine_mode',
-#     'export_materials_library',
-# ]
-
 class AutoExportGLTF(bpy.types.Operator):
     bl_idname = "export_scenes.auto_gltf"
     bl_label = "Apply settings"
@@ -42,9 +21,7 @@ class AutoExportGLTF(bpy.types.Operator):
         'export_scene_settings',
         'main_scene_names',
         'library_scene_names',
-        'export_blueprints',
         'collection_instances_combine_mode',
-        'export_materials_library',
     ]
 
     @classmethod

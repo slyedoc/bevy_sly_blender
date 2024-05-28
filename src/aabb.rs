@@ -1,6 +1,6 @@
 use bevy::{math::Vec3A, prelude::*, render::primitives::Aabb};
 
-use crate::blueprints::{BluePrintsConfig, Spawned};
+use crate::{BlenderPluginConfig, Spawned};
 
 /// helper system that computes the compound aabbs of the scenes/blueprints
 pub fn compute_scene_aabbs(
@@ -8,7 +8,7 @@ pub fn compute_scene_aabbs(
     children: Query<&Children>,
     existing_aabbs: Query<&Aabb>,
 
-    mut blueprints_config: ResMut<BluePrintsConfig>,
+    mut blueprints_config: ResMut<BlenderPluginConfig>,
     mut commands: Commands,
 ) {
     // compute compound aabb

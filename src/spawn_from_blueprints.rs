@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use bevy::{gltf::Gltf, prelude::*, utils::HashMap};
 
-use crate::blueprints::{BluePrintsConfig, BlueprintAnimations};
+use crate::{BlenderPluginConfig, BlueprintAnimations};
 
 /// this is a flag component for our levels/game world
 #[derive(Component)]
@@ -103,7 +103,7 @@ pub(crate) fn prepare_blueprints(
 
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    blueprints_config: Res<BluePrintsConfig>,
+    blueprints_config: Res<BlenderPluginConfig>,
 ) {
     for (entity, blupeprint_name, original_parent, library_override, name, blueprints_list) in
         spawn_placeholders.iter()
@@ -215,7 +215,7 @@ pub(crate) fn spawn_from_blueprints(
 
     assets_gltf: Res<Assets<Gltf>>,
     asset_server: Res<AssetServer>,
-    blueprints_config: Res<BluePrintsConfig>,
+    blueprints_config: Res<BlenderPluginConfig>,
 
     children: Query<&Children>,
 ) {

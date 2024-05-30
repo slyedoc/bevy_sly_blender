@@ -6,12 +6,12 @@ import bpy
 from bpy.props import (StringProperty)
 from bpy_types import PropertyGroup
 
+from ..util import BLENDER_PROPERTY_MAPPING, VALUE_TYPES_DEFAULTS
+
 # this helper creates a "fake"/wrapper property group that is NOT a real type in the registry
 # usefull for things like value types in list items etc
 def generate_wrapper_propertyGroup(wrapped_type_long_name_name, item_long_name, definition_link, registry, update):
-    value_types_defaults = registry.value_types_defaults 
-    blender_property_mapping = registry.blender_property_mapping
-    is_item_value_type = item_long_name in value_types_defaults
+    is_item_value_type = item_long_name in VALUE_TYPES_DEFAULTS
 
     wrapper_name = "wrapper_" + wrapped_type_long_name_name
 
@@ -38,9 +38,9 @@ def generate_wrapper_propertyGroup(wrapped_type_long_name_name, item_long_name, 
 
 
     blender_property = StringProperty(default="", update=update)
-    if item_long_name in blender_property_mapping:
-        value = value_types_defaults[item_long_name] if is_item_value_type else None
-        blender_property_def = blender_property_mapping[item_long_name]
+    if item_long_name in BLENDER_PROPERTY_MAPPING:
+        value = VALUE_TYPES_DEFAULTS[item_long_name] if is_item_value_type else None
+        blender_property_def = BLENDER_PROPERTY_MAPPING[item_long_name]
         blender_property = blender_property_def["type"](
             **blender_property_def["presets"],# we inject presets first
             name = "property_name",

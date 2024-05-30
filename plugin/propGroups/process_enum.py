@@ -1,8 +1,9 @@
 from bpy.props import (StringProperty)
+
+from ..util import BLENDER_PROPERTY_MAPPING
 from . import process_component
 
 def process_enum(registry, definition, update, nesting, nesting_long_names):
-    blender_property_mapping = registry.blender_property_mapping
     short_name = definition["short_name"]
     long_name = definition["long_name"]
 
@@ -42,7 +43,7 @@ def process_enum(registry, definition, update, nesting, nesting_long_names):
 
         items = tuple((e, e, e) for e in labels)
 
-        blender_property_def = blender_property_mapping[original_type_name]
+        blender_property_def = BLENDER_PROPERTY_MAPPING[original_type_name]
         blender_property = blender_property_def["type"](
             **blender_property_def["presets"],# we inject presets first
             items=items, # this is needed by Blender's EnumProperty , which we are using here
@@ -56,7 +57,7 @@ def process_enum(registry, definition, update, nesting, nesting_long_names):
         # a second field + property for the "content" of the enum
     else:
         items = tuple((e, e, "") for e in variants)        
-        blender_property_def = blender_property_mapping[original_type_name]
+        blender_property_def = BLENDER_PROPERTY_MAPPING[original_type_name]
         blender_property = blender_property_def["type"](
             **blender_property_def["presets"],# we inject presets first
             items=items,

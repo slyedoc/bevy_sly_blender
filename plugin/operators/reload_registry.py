@@ -3,7 +3,7 @@ import bpy
 from bpy_types import (Operator)
 from bpy.props import (StringProperty)
 
-from ..components_registry import ComponentsRegistry
+from ..settings import BevySettings
 
 
 class ReloadRegistryOperator(Operator):
@@ -18,9 +18,8 @@ class ReloadRegistryOperator(Operator):
     ) # type: ignore
 
     def execute(self, context):
-        print("reload registry")
-        components_registry = context.window_manager.components_registry # type: ComponentsRegistry
-        components_registry.load_schema()
+        bevy = context.window_manager.bevy # type: BevySettings
+        bevy.load_registry()
 
         # now force refresh the ui
         for area in context.screen.areas: 

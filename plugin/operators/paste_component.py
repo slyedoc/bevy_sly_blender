@@ -12,6 +12,8 @@ class PasteComponentOperator(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context):
+        bevy = context.window_manager.bevy
+
         source_object_name = context.window_manager.copied_source_object
         source_object = bpy.data.objects.get(source_object_name, None)
         print("source object", source_object)
@@ -25,7 +27,7 @@ class PasteComponentOperator(Operator):
             else:
                 print("pasting component to object: component name:", str(component_name), "component value:" + str(component_value))
                 print (context.object)
-                registry = context.window_manager.components_registry
-                copy_propertyGroup_values_to_another_object(source_object, context.object, component_name, registry)
+                
+                copy_propertyGroup_values_to_another_object(source_object, context.object, component_name, bevy)
 
         return {'FINISHED'}

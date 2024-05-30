@@ -1,4 +1,6 @@
 import bpy
+import json
+
 from bpy.props import (StringProperty, BoolProperty, PointerProperty)
 from bpy_types import (PropertyGroup)
 
@@ -76,38 +78,6 @@ def cleanup_invalid_metadata(object):
         components_metadata.remove(index)
 
 
-# returns a component definition ( an entry in registry's type_infos) with matching long name or None if nothing has been found
-def find_component_definition_from_long_name(long_name):
-    registry = bpy.context.window_manager.components_registry
-    return registry.type_infos.get(long_name, None)
-
-
-# returns whether an object has custom properties without matching metadata
-def do_object_custom_properties_have_missing_metadata(object):
-    components_metadata = getattr(object, "components_meta", None)
-    if components_metadata == None:
-        return True
-
-    components_metadata = components_metadata.components
-
-    missing_metadata = False
-    for component_name in get_bevy_components(object) :
-        if component_name == "components_meta":
-            continue
-        component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_metadata), None)
-        if component_meta == None: 
-            # current component has no metadata but is there even a compatible type in the registry ?
-            # if not ignore it
-            component_definition = find_component_definition_from_long_name(component_name)
-            if component_definition != None:
-                missing_metadata = True
-                break
-
-    return missing_metadata
-
-
-import json
-
 def upsert_bevy_component(object, long_name, value):
     if not 'bevy_components' in object:
         object['bevy_components'] = '{}'
@@ -142,12 +112,12 @@ def is_bevy_component_in_object(object, long_name):
 
 # adds metadata to object only if it is missing
 def add_metadata_to_components_without_metadata(object):
-    registry = bpy.context.window_manager.components_registry
+    bevy = bpy.context.window_manager.bevy
 
     for component_name in get_bevy_components(object) :
         if component_name == "components_meta":
             continue
-        upsert_component_in_object(object, component_name, registry)
+        upsert_component_in_object(object, component_name, bevy)
                     
 # adds a component to an object (including metadata) using the provided component definition & optional value
 def add_component_to_object(object, component_definition, value=None):
@@ -155,30 +125,30 @@ def add_component_to_object(object, component_definition, value=None):
     if object is not None:
         # print("add_component_to_object", component_definition)
         long_name = component_definition["long_name"]
-        registry = bpy.context.window_manager.components_registry
-        if not registry.has_type_infos():
+        bevy = bpy.context.window_manager.bevy
+        if not bevy.has_type_infos():
             raise Exception('registry type infos have not been loaded yet or are missing !')
-        definition = registry.type_infos[long_name]
+        definition = bevy.type_data.type_infos[long_name]
         # now we use our pre_generated property groups to set the initial value of our custom property
-        (_, propertyGroup) = upsert_component_in_object(object, long_name=long_name, registry=registry)
+        (_, propertyGroup) = upsert_component_in_object(object, long_name=long_name, bevy=bevy)
         if value == None:
-            value = property_group_value_to_custom_property_value(propertyGroup, definition, registry, None)
+            value = property_group_value_to_custom_property_value(propertyGroup, definition, bevy, None)
         else: # we have provided a value, that is a raw , custom property value, to set the value of the propertyGroup
             object["__disable__update"] = True # disable update callback while we set the values of the propertyGroup "tree" (as a propertyGroup can contain other propertyGroups) 
-            property_group_value_from_custom_property_value(propertyGroup, definition, registry, value)
+            property_group_value_from_custom_property_value(propertyGroup, definition, bevy, value)
             del object["__disable__update"]
 
         upsert_bevy_component(object, long_name, value)
        
-def upsert_component_in_object(object, long_name, registry):
+def upsert_component_in_object(object, long_name, bevy):
     # print("upsert_component_in_object", object, "component name", component_name)
     # TODO: upsert this part too ?
     target_components_metadata = object.components_meta.components
-    component_definition = registry.type_infos.get(long_name, None)
+    component_definition = bevy.type_data.type_infos.get(long_name, None)
     if component_definition != None:
         short_name = component_definition["short_name"]
         long_name = component_definition["long_name"]
-        property_group_name = registry.get_propertyGroupName_from_longName(long_name)
+        property_group_name = bevy.type_data.long_names_to_propgroup_names.get(long_name, None)
         propertyGroup = None
 
         component_meta = next(filter(lambda component: component["long_name"] == long_name, target_components_metadata), None)
@@ -193,23 +163,23 @@ def upsert_component_in_object(object, long_name, registry):
         # try to inject propertyGroup if not present
         if propertyGroup == None:
             #print("propertygroup not found in metadata attempting to inject")
-            if property_group_name in registry.component_propertyGroups:
+            if property_group_name in bevy.type_data.component_propertyGroups:
                 # we have found a matching property_group, so try to inject it
                 # now inject property group
-                setattr(ComponentMetadata, property_group_name, registry.component_propertyGroups[property_group_name]) # FIXME: not ideal as all ComponentMetadata get the propGroup, but have not found a way to assign it per instance
+                setattr(ComponentMetadata, property_group_name, bevy.type_data.component_propertyGroups[property_group_name]) # FIXME: not ideal as all ComponentMetadata get the propGroup, but have not found a way to assign it per instance
                 propertyGroup = getattr(component_meta, property_group_name, None)
         
         # now deal with property groups details
         if propertyGroup != None:
-            if long_name in registry.invalid_components:
+            if long_name in bevy.type_data.invalid_components:
                 component_meta.enabled = False
                 component_meta.invalid = True
-                component_meta.invalid_details = "component contains fields that are not in the schema, disabling"
+                component_meta.invalid_details = "component contains fields that are not in the registry, disabling"
         else:
             # if we still have not found the property group, mark it as invalid
             component_meta.enabled = False
             component_meta.invalid = True
-            component_meta.invalid_details = "component not present in the schema, possibly renamed? Disabling for now"
+            component_meta.invalid_details = "component not present in the registry, possibly renamed? Disabling for now"
         # property_group_value_from_custom_property_value(propertyGroup, component_definition, registry, object[component_name])
 
         return (component_meta, propertyGroup)
@@ -217,15 +187,13 @@ def upsert_component_in_object(object, long_name, registry):
         return(None, None)
 
 
-def copy_propertyGroup_values_to_another_object(source_object, target_object, component_name, registry):
+def copy_propertyGroup_values_to_another_object(source_object, target_object, component_name, bevy):
     if source_object == None or target_object == None or component_name == None:
         raise Exception('missing input data, cannot copy component propertryGroup')
     
-    component_definition = find_component_definition_from_long_name(component_name)
+    component_definition = bevy.type_data.type_infos.get(component_name, None)
     long_name = component_name
-    property_group_name = registry.get_propertyGroupName_from_longName(long_name)
-
-    registry = bpy.context.window_manager.components_registry
+    property_group_name = bevy.self.type_data.long_names_to_propgroup_names.get(long_name, None)
 
     source_components_metadata = source_object.components_meta.components
     source_componentMeta = next(filter(lambda component: component["long_name"] == long_name, source_components_metadata), None)
@@ -233,38 +201,37 @@ def copy_propertyGroup_values_to_another_object(source_object, target_object, co
     source_propertyGroup = getattr(source_componentMeta, property_group_name)
 
     # now deal with the target object
-    (_, target_propertyGroup) = upsert_component_in_object(target_object, component_name, registry)
+    (_, target_propertyGroup) = upsert_component_in_object(target_object, component_name, bevy)
     # add to object
-    value = property_group_value_to_custom_property_value(target_propertyGroup, component_definition, registry, None)
+    value = property_group_value_to_custom_property_value(target_propertyGroup, component_definition, bevy, None)
     upsert_bevy_component(target_object, long_name, value)
 
     # copy the values over 
     for field_name in source_propertyGroup.field_names:
         if field_name in source_propertyGroup:
             target_propertyGroup[field_name] = source_propertyGroup[field_name]
-    apply_propertyGroup_values_to_object_customProperties(target_object)
+    apply_propertyGroup_values_to_object_customProperties(target_object, bevy)
 
 
 # TODO: move to propgroups ?
-def apply_propertyGroup_values_to_object_customProperties(object):
+def apply_propertyGroup_values_to_object_customProperties(object, bevy):
     cleanup_invalid_metadata(object)
-    registry = bpy.context.window_manager.components_registry
     for component_name in get_bevy_components(object) :
         """if component_name == "components_meta":
             continue"""
-        (_, propertyGroup) =  upsert_component_in_object(object, component_name, registry)
-        component_definition = find_component_definition_from_long_name(component_name)
+        (_, propertyGroup) =  upsert_component_in_object(object, component_name, bevy)
+        component_definition = bevy.type_data.type_infos.get(component_name, None)
         if component_definition != None:
-            value = property_group_value_to_custom_property_value(propertyGroup, component_definition, registry, None)
+            value = property_group_value_to_custom_property_value(propertyGroup, component_definition, bevy, None)
             upsert_bevy_component(object=object, long_name=component_name, value=value)
 
 # apply component value(s) to custom property of a single component
 def apply_propertyGroup_values_to_object_customProperties_for_component(object, component_name):
-    registry = bpy.context.window_manager.components_registry
-    (_, propertyGroup) =  upsert_component_in_object(object, component_name, registry)
-    component_definition = find_component_definition_from_long_name(component_name)
+    bevy = bpy.context.window_manager.bevy
+    (_, propertyGroup) =  upsert_component_in_object(object, component_name, bevy)
+    component_definition = bevy.type_data.type_infos.get(component_name, None)
     if component_definition != None:
-        value = property_group_value_to_custom_property_value(propertyGroup, component_definition, registry, None)
+        value = property_group_value_to_custom_property_value(propertyGroup, component_definition, bevy, None)
         object[component_name] = value
     
     components_metadata = object.components_meta.components
@@ -276,13 +243,13 @@ def apply_propertyGroup_values_to_object_customProperties_for_component(object, 
 
 def apply_customProperty_values_to_object_propertyGroups(object):
     print("apply custom properties to ", object.name)
-    registry = bpy.context.window_manager.components_registry
+    bevy = bpy.context.window_manager.bevy
     for component_name in get_bevy_components(object) :
         if component_name == "components_meta":
             continue
-        component_definition = find_component_definition_from_long_name(component_name)
+        component_definition = bevy.type_data.type_infos.get(component_name, None)
         if component_definition != None:
-            property_group_name = registry.get_propertyGroupName_from_longName(component_name)
+            property_group_name = bevy.self.type_data.long_names_to_propgroup_names.get(component_name, None)
             components_metadata = object.components_meta.components
             source_componentMeta = next(filter(lambda component: component["long_name"] == component_name, components_metadata), None)
             # matching component means we already have this type of component 
@@ -291,7 +258,7 @@ def apply_customProperty_values_to_object_propertyGroups(object):
             #value = property_group_value_to_custom_property_value(propertyGroup, component_definition, registry, None)
             
             object["__disable__update"] = True # disable update callback while we set the values of the propertyGroup "tree" (as a propertyGroup can contain other propertyGroups) 
-            property_group_value_from_custom_property_value(propertyGroup, component_definition, registry, customProperty_value)
+            property_group_value_from_custom_property_value(propertyGroup, component_definition, bevy, customProperty_value)
             del object["__disable__update"]
             source_componentMeta.invalid = False
             source_componentMeta.invalid_details = ""
@@ -322,8 +289,8 @@ def add_component_from_custom_property(object):
     apply_customProperty_values_to_object_propertyGroups(object)
 
 def rename_component(object, original_long_name, new_long_name):
-    registry = bpy.context.window_manager.components_registry
-    type_infos = registry.type_infos
+    bevy = bpy.context.window_manager.bevy
+    type_infos = bevy.type_data.type_infos
     component_definition = type_infos[new_long_name]
 
     component_ron_value = get_bevy_component_value_by_long_name(object=object, long_name=original_long_name)

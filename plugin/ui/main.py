@@ -20,14 +20,13 @@ from ..operators.remove_component import RemoveComponentOperator
 from ..operators.select_component_to_replace import OT_select_component_name_to_replace
 from ..operators.rename_component import OT_rename_component
 from ..operators.select_object import OT_select_object
-from ..operators.open_schema_file_brower import OT_OpenSchemaFileBrowser
+from ..operators.open_registry_file_brower import OT_OpenRegistryFileBrowser
 from ..operators.open_assets_folder_browser import OT_OpenAssetsFolderBrowser
 from ..operators.reload_registry import ReloadRegistryOperator
 from ..operators.tooling_switch import OT_switch_bevy_tooling
 
 
-from ..components_meta import do_object_custom_properties_have_missing_metadata, get_bevy_components
-from ..components_registry import ComponentsRegistry
+from ..components_meta import get_bevy_components
 from ..component_definitions_list import ComponentDefinitionsList
 from ..settings import BevySettings
 #from ..assets_registry import AssetsRegistry
@@ -168,8 +167,8 @@ def draw_propertyGroup( propertyGroup, layout, nesting =[], rootName=None):
                 subrow.separator()
 
 ## components ui
-def draw_invalid_or_unregistered(layout, components_registry: ComponentsRegistry, components_list, status, component_name, object):
-    registry_has_type_infos = components_registry.has_type_infos()
+def draw_invalid_or_unregistered(layout, bevy: BevySettings, components_list, status, component_name, object):
+    registry_has_type_infos = bevy.has_type_infos()
 
     row = layout.row()
 
@@ -188,7 +187,7 @@ def draw_invalid_or_unregistered(layout, components_registry: ComponentsRegistry
 
     col = row.column()
     operator = col.operator(OT_rename_component.bl_idname, text="", icon="SHADERFX") #rename
-    new_name = components_registry.type_infos[components_list.list]['long_name'] if components_list.list in components_registry.type_infos else ""
+    new_name = bevy.type_data.type_infos[components_list.list]['long_name'] if components_list.list in bevy.type_data.type_infos else ""
     operator.original_name = component_name
     operator.target_objects = json.dumps([object.name])
     operator.new_name = new_name
@@ -219,16 +218,12 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         row = layout.row()
         
         # get all the data
-        bevy = context.window_manager.bevy # type: BevySettings
-        #asset_registry = context.window_manager.assets_registry # type: AssetsRegistry        
-        #blueprints_data = blueprints_registry.blueprints_data
-        components_registry = context.window_manager.components_registry # type: ComponentsRegistry        
+        bevy = context.window_manager.bevy # type: BevySettings      
+        registry_has_type_infos = bevy.has_type_infos()
         components_list = context.window_manager.components_list # type: ComponentDefinitionsList
         rename_helper = context.window_manager.bevy_component_rename_helper # type: RenameHelper
         remove_components_progress = context.window_manager.components_remove_progress # type: float
-
-
-        registry_has_type_infos = components_registry.has_type_infos()
+        
         selected_object = context.selected_objects[0] if len(context.selected_objects) > 0 else None
 
         def mode_icon(mode):
@@ -309,9 +304,24 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                     layout.separator()
 
-                    # upgrate custom props to components
-                    upgradeable_customProperties = registry_has_type_infos and do_object_custom_properties_have_missing_metadata(context.object)
-                    if upgradeable_customProperties:
+                    # load component ui's
+                    missing_metadata = True               
+                    components_metadata = getattr(context.object, "components_meta", None)
+                    if components_metadata:                                            
+                        for component_name in get_bevy_components(context.object) :
+                            if component_name == "components_meta":
+                                continue
+                            component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_metadata.components), None)
+                            if component_meta == None: 
+                                # current component has no metadata but is there even a compatible type in the registry ?
+                                # if not ignore it
+                                component_definition = bevy.type_data.type_infos.get(component_name, None)
+                                if component_definition != None:
+                                    missing_metadata = True
+                                    break
+
+                    # upgrate custom props to components                    
+                    if registry_has_type_infos and missing_metadata:
                         row = layout.row(align=True)
                         op = row.operator(GenerateComponent_From_custom_property_Operator.bl_idname, text="generate components from custom properties" , icon="LOOP_FORWARDS") 
                         layout.separator()
@@ -343,7 +353,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                         row.label(text=component_name)
 
                         # we fetch the matching ui property group
-                        root_propertyGroup_name =  components_registry.get_propertyGroupName_from_longName(component_name)
+                        root_propertyGroup_name =  bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
                         """print("root_propertyGroup_name", root_propertyGroup_name)"""
                         print("component_meta", component_meta, component_invalid)
 
@@ -397,7 +407,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 else: 
                     layout.label(text ="Select an object to edit its components")
             case "BLUEPRINTS":        
-                for blueprint in blueprints_registry.blueprints_list:
+                for blueprint in bevy.blueprints_list:
 
                     row.label(icon="RIGHTARROW")
                     row.label(text=blueprint.name)
@@ -410,11 +420,11 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                             select_blueprint.blueprint_collection_name = blueprint.collection.name
                         select_blueprint.blueprint_scene_name = blueprint.scene.name
 
-                        user_assets = getattr(blueprint.collection, 'user_assets', [])
+                        #user_assets = getattr(blueprint.collection, 'user_assets', [])
                         #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
 
                     else:
-                        user_assets = getattr(blueprint.collection, 'user_assets', [])
+                        #user_assets = getattr(blueprint.collection, 'user_assets', [])
                         #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
                         row.label(text="External")
 
@@ -433,11 +443,11 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 folder_selector.target_property = "assets_path"
 
                 row = layout.row()
-                row.label(text="Schema File")
+                row.label(text="Registry File")
                 col = row.column()
                 col.enabled = False                        
-                col.prop(data=bevy, property="schema_file", text="")
-                file_selector = row.operator(OT_OpenSchemaFileBrowser.bl_idname, icon="FILE", text="")
+                col.prop(data=bevy, property="registry_file", text="")
+                file_selector = row.operator(OT_OpenRegistryFileBrowser.bl_idname, icon="FILE", text="")
                 #file_selector.target_property = "assets_path"
 
                 row = layout.row()
@@ -445,8 +455,8 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 row.operator(ReloadRegistryOperator.bl_idname, text="reload registry" , icon="FILE_REFRESH")
 
                 row = layout.row()
-                row.prop(components_registry, "watcher_enabled", text="enable registry file polling")
-                row.prop(components_registry, "watcher_poll_frequency", text="registry file poll frequency (s)")
+                row.prop(bevy, "watcher_enabled", text="enable registry file polling")
+                row.prop(bevy, "watcher_poll_frequency", text="registry file poll frequency (s)")
 
                 row = layout.row()
                 row.label(text="Auto Export")
@@ -505,7 +515,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             case "TOOLS":
 
                 layout.label(text="Missing types ")
-                layout.template_list("MISSING_TYPES_UL_List", "Missing types list", components_registry, "missing_types_list", components_registry, "missing_types_list_index")
+                layout.template_list("MISSING_TYPES_UL_List", "Missing types list", bevy, "missing_types_list", bevy, "missing_types_list_index")
 
                 box= row.box()
                 box.label(text="Invalid/ unregistered components")
@@ -527,7 +537,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                             for index, component_meta in enumerate(components_metadata):
                                 long_name = component_meta.long_name
                                 if component_meta.invalid:
-                                    draw_invalid_or_unregistered(layout, components_registry, components_list, "Invalid", long_name, object)
+                                    draw_invalid_or_unregistered(layout, bevy, components_list, "Invalid", long_name, object)
                                 
                                     if not object.name in objects_with_invalid_components:
                                         objects_with_invalid_components.append(object.name)
@@ -540,7 +550,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                             for custom_property in object.keys():
                                 if custom_property != 'components_meta' and custom_property != 'bevy_components' and custom_property not in comp_names:
-                                    draw_invalid_or_unregistered(layout, components_registry, components_list, "Unregistered", custom_property, object)
+                                    draw_invalid_or_unregistered(layout, bevy, components_list, "Unregistered", custom_property, object)
                                 
                                     if not object.name in objects_with_invalid_components:
                                         objects_with_invalid_components.append(object.name)
@@ -572,7 +582,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 if components_rename_progress == -1.0:
                     operator = col.operator(OT_rename_component.bl_idname, text="apply", icon="SHADERFX")
                     operator.target_objects = json.dumps(objects_with_invalid_components)
-                    new_name = components_registry.type_infos[components_list.list]['short_name'] if components_list.list in components_registry.type_infos else ""
+                    new_name = bevy.type_data.type_infos[components_list.list]['short_name'] if components_list.list in bevy.type_data.type_infos else ""
                     operator.new_name = new_name
                     col.enabled = registry_has_type_infos and rename_helper.original_name != "" and rename_helper.original_name != new_name
                 else:

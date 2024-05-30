@@ -30,7 +30,7 @@ from .operators.generate_component_from_custom_property import GenerateComponent
 from .operators.generic_list import GENERIC_LIST_OT_actions, Generic_LIST_OT_AddItem, Generic_LIST_OT_RemoveItem, Generic_LIST_OT_SelectItem
 from .operators.generic_map_actions import GENERIC_MAP_OT_actions
 from .operators.open_assets_folder_browser import OT_OpenAssetsFolderBrowser
-from .operators.open_schema_file_brower import OT_OpenSchemaFileBrowser
+from .operators.open_registry_file_brower import OT_OpenRegistryFileBrowser
 from .operators.paste_component import PasteComponentOperator
 from .operators.refresh_custom_properties import (COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_ALL, COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_CURRENT, COMPONENTS_OT_REFRESH_PROPGROUPS_FROM_CUSTOM_PROPERTIES_ALL, COMPONENTS_OT_REFRESH_PROPGROUPS_FROM_CUSTOM_PROPERTIES_CURRENT)
 from .operators.reload_registry import ReloadRegistryOperator
@@ -44,9 +44,8 @@ from .operators.toggle_component_visibility import Toggle_ComponentVisibility
 from .operators.tooling_switch import OT_switch_bevy_tooling
 
 # data
-from .settings import BevySettings, SceneSelector
+from .settings import BevySettings, SceneSelector, RegistryType, MissingBevyType, watch_registry
 from .component_definitions_list import ComponentDefinitionsList
-from .components_registry import MissingBevyType, ComponentsRegistry, watch_schema
 from .rename_helper import RenameHelper
 from .components_meta import (ComponentMetadata, ComponentsMeta)
 from .auto_export_tracker import AutoExportTracker
@@ -59,13 +58,13 @@ classes = [
     #Asset,
     #AssetsRegistry,
     SceneSelector,
+    MissingBevyType,
+    RegistryType,
     BevySettings,    
     ComponentDefinitionsList,
     RenameHelper,
     ComponentMetadata,
     ComponentsMeta,
-    MissingBevyType, # before ComponentsRegistry
-    ComponentsRegistry,   
     AutoExportTracker, 
 
     #UI
@@ -87,7 +86,7 @@ classes = [
     Generic_LIST_OT_SelectItem,
     GENERIC_MAP_OT_actions,
     OT_OpenAssetsFolderBrowser,
-    OT_OpenSchemaFileBrowser,
+    OT_OpenRegistryFileBrowser,
     PasteComponentOperator,
     COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_ALL,
     COMPONENTS_OT_REFRESH_CUSTOM_PROPERTIES_CURRENT,
@@ -113,19 +112,16 @@ def post_update(scene, depsgraph):
 
 @persistent
 def post_save(scene, depsgraph):
-    print("\n\npost_save\n\n");
+    print("\npost_save\n");
     auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
     auto_export_tracker.save_handler( scene, depsgraph)
 
 @persistent
 def post_load(file_name):
-    bevy = bpy.context.window_manager.bevy # type: BevySettings
-    components_registry = bpy.context.window_manager.components_registry # type: ComponentsRegistry
-        
     print("loaded blend file")
-    if components_registry is not None:
-        components_registry.load_schema()
+    bevy = bpy.context.window_manager.bevy # type: BevySettings    
     bevy.load_settings()
+    
 
 def is_scene_ok(self, scene):
     print("is_scene_ok", self.name)
@@ -159,9 +155,7 @@ def register():
     # TODO: just put this in settings?
     bpy.types.WindowManager.main_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="main scene", description="main_scene_picker", poll=is_scene_ok)
     bpy.types.WindowManager.library_scene = bpy.props.PointerProperty(type=bpy.types.Scene, name="library scene", description="library_scene_picker", poll=is_scene_ok)
-
-    bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)
-    bpy.types.WindowManager.components_registry = PointerProperty(type=ComponentsRegistry)
+    bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)    
     bpy.types.WindowManager.bevy_component_rename_helper = bpy.props.PointerProperty(type=RenameHelper)
     bpy.types.WindowManager.components_rename_progress = bpy.props.FloatProperty(default=-1.0) #bpy.props.PointerProperty(type=RenameHelper)
     bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
@@ -183,8 +177,6 @@ def unregister():
     del bpy.types.Object.components_meta
     
     del bpy.types.WindowManager.bevy
-    #del bpy.types.WindowManager.assets_registry
-    #del bpy.types.WindowManager.blueprints_registry
     del bpy.types.WindowManager.components_list
     del bpy.types.WindowManager.bevy_component_rename_helper
     del bpy.types.WindowManager.components_rename_progress
@@ -206,11 +198,11 @@ def unregister():
     #     except Exception as error:
     #         pass
     try:
-        bpy.app.timers.unregister(watch_schema)
+        bpy.app.timers.unregister(watch_registry)
     except Exception as error:
         pass
     
-    del bpy.types.WindowManager.components_registry
+    #del bpy.types.WindowManager.components_registry
     
     bpy.app.handlers.load_post.remove(post_load)
     bpy.app.handlers.depsgraph_update_post.remove(post_update)

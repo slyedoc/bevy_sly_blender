@@ -1,6 +1,8 @@
 import json
 import bpy
 
+
+
 from bpy.types import (PropertyGroup)
 from bpy.props import (PointerProperty, IntProperty, StringProperty)
 
@@ -54,34 +56,36 @@ class AutoExportTracker(PropertyGroup):
     def deps_post_update_handler(cls, scene, depsgraph):
         # print("change detection enabled", cls.change_detection_enabled)
 
-        """ops = bpy.context.window_manager.operators
-        print("last operators", ops)
-        for op in ops:
-            print("operator", op)"""
-        active_operator = bpy.context.active_operator
-        if active_operator:
-            #print("Operator", active_operator.bl_label, active_operator.bl_idname)
-            if active_operator.bl_idname == "EXPORT_SCENE_OT_gltf" and active_operator.gltf_export_id == "gltf_auto_export":
-                # we backup any existing gltf export settings, if there were any
-                scene = bpy.context.scene
-                if "glTF2ExportSettings" in scene:
-                    existing_setting = scene["glTF2ExportSettings"]
-                    bpy.context.window_manager.gltf_settings_backup = json.dumps(dict(existing_setting))
+        #ops = bpy.context.window_manager.operators
+        #print("last operators", ops)
+        #for op in ops:
+        #   print("operator", op)
 
-                # we force saving params
-                active_operator.will_save_settings = True
-                # we set the last operator here so we can clear the specific settings (yeah for overly complex logic)
-                cls.last_operator = active_operator
-                #print("active_operator", active_operator.has_active_exporter_extensions, active_operator.__annotations__.keys(), active_operator.filepath, active_operator.gltf_export_id)
-                return
+        # TODO: this is to capture export settings, will come back to this, going with hardcode settings for now
+        # active_operator = bpy.context.active_operator # type: bpy.types.Operator
+        # if active_operator:
+        #     #print("Operator", active_operator.bl_label, active_operator.bl_idname)
+        #     if active_operator.bl_idname == "EXPORT_SCENE_OT_gltf" and active_operator.gltf_export_id == "gltf_auto_export":                
+        #         # we backup any existing gltf export settings, if there were any
+        #         scene = bpy.context.scene
+        #         if "glTF2ExportSettings" in scene:
+        #             existing_setting = scene["glTF2ExportSettings"]
+        #             bpy.context.window_manager.gltf_settings_backup = json.dumps(dict(existing_setting))
+
+        #         # we force saving params
+        #         active_operator.will_save_settings = True
+        #         # we set the last operator here so we can clear the specific settings (yeah for overly complex logic)
+        #         cls.last_operator = active_operator
+        #         #print("active_operator", active_operator.has_active_exporter_extensions, active_operator.__annotations__.keys(), active_operator.filepath, active_operator.gltf_export_id)
+        #         return
             
-            if active_operator.bl_idname == "EXPORT_SCENES_OT_auto_gltf":
-                # we force saving params
-                active_operator.will_save_settings = True
-                active_operator.auto_export = True
-                # if we are using the operator, bail out for the rest
-                print("setting stuff for auto_export")
-                return
+        #     if active_operator.bl_idname == "EXPORT_SCENES_OT_auto_gltf":
+        #         # we force saving params
+        #         active_operator.will_save_settings = True
+        #         active_operator.auto_export = True
+        #         # if we are using the operator, bail out for the rest
+        #         print("setting stuff for auto_export")
+        #         return
 
         # only deal with changes if we are NOT in the mids of saving/exporting
         if cls.change_detection_enabled:
@@ -112,8 +116,8 @@ class AutoExportTracker(PropertyGroup):
                                 if slot.material == material:
                                     cls.changed_objects_per_scene[scene.name][obj.name] = obj
                 #print("changed_objects_per_scene", cls.changed_objects_per_scene)
-                """for obj_name_original in cls.changed_objects_per_scene[scene_name]:
-                    if obj_name_original != ls.changed_objects_per_scene[scene_name][obj_name_original]"""
+                #for obj_name_original in cls.changed_objects_per_scene[scene_name]:
+                #   if obj_name_original != ls.changed_objects_per_scene[scene_name][obj_name_original]
                 items = 0
                 for scene_name in cls.changed_objects_per_scene:
                     items += len(cls.changed_objects_per_scene[scene_name].keys())
@@ -122,11 +126,11 @@ class AutoExportTracker(PropertyGroup):
                 #print("changed_objects_per_scene", cls.changed_objects_per_scene)
 
         # filter out invalid objects
-        """for scene_name in cls.changed_objects_per_scene.keys():
-            bla = {}
-            for object_name in cls.changed_objects_per_scene[scene.name]:
-                object = cls.changed_objects_per_scene[scene.name][object_name]"""
-                #print("sdfsd", object, object.valid)
+        #for scene_name in cls.changed_objects_per_scene.keys():
+        #    bla = {}
+        #    for object_name in cls.changed_objects_per_scene[scene.name]:
+        #        object = cls.changed_objects_per_scene[scene.name][object_name]
+        #        #print("sdfsd", object, object.valid)
                 #if not cls.changed_objects_per_scene[scene.name][object_name].invalid:
                 #    bla[object_name] = cls.changed_objects_per_scene[scene.name][object_name]
             #cls.changed_objects_per_scene[scene.name]= bla

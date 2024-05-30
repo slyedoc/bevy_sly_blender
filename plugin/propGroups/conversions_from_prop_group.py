@@ -27,7 +27,7 @@ conversion_tables = {
 
 #converts the value of a property group(no matter its complexity) into a single custom property value
 # this is more or less a glorified "to_ron()" method (not quite but close to)
-def property_group_value_to_custom_property_value(property_group, definition, registry, parent=None, value=None):
+def property_group_value_to_custom_property_value(property_group, definition, bevy, parent=None, value=None):
     long_name = definition["long_name"]
     type_info = definition["typeInfo"] if "typeInfo" in definition else None
     type_def = definition["type"] if "type" in definition else None
@@ -43,13 +43,13 @@ def property_group_value_to_custom_property_value(property_group, definition, re
         else:
             for index, field_name in enumerate(property_group.field_names):
                 item_long_name = definition["properties"][field_name]["type"]["$ref"].replace("#/$defs/", "")
-                item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+                item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
                 value = getattr(property_group, field_name)
                 is_property_group = isinstance(value, PropertyGroup)
                 child_property_group = value if is_property_group else None
                 if item_definition != None:
-                    value = property_group_value_to_custom_property_value(child_property_group, item_definition, registry, parent=long_name, value=value)
+                    value = property_group_value_to_custom_property_value(child_property_group, item_definition, bevy, parent=long_name, value=value)
                 else:
                     value = '""'
                 values[field_name] = value
@@ -58,13 +58,13 @@ def property_group_value_to_custom_property_value(property_group, definition, re
         values = {}
         for index, field_name in enumerate(property_group.field_names):
             item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
-            item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
             value = getattr(property_group, field_name)
             is_property_group = isinstance(value, PropertyGroup)
             child_property_group = value if is_property_group else None
             if item_definition != None:
-                value = property_group_value_to_custom_property_value(child_property_group, item_definition, registry, parent=long_name, value=value)
+                value = property_group_value_to_custom_property_value(child_property_group, item_definition, bevy, parent=long_name, value=value)
             else:
                 value = '""'
             values[field_name] = value
@@ -75,13 +75,13 @@ def property_group_value_to_custom_property_value(property_group, definition, re
         for index, field_name in enumerate(property_group.field_names):
             #print("toto", index, definition["prefixItems"][index]["type"]["$ref"])
             item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
-            item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
             value = getattr(property_group, field_name)
             is_property_group = isinstance(value, PropertyGroup)
             child_property_group = value if is_property_group else None
             if item_definition != None:
-                value = property_group_value_to_custom_property_value(child_property_group, item_definition, registry, parent=long_name, value=value)
+                value = property_group_value_to_custom_property_value(child_property_group, item_definition, bevy, parent=long_name, value=value)
             else:
                 value = '""'
             values[field_name] = value
@@ -98,21 +98,21 @@ def property_group_value_to_custom_property_value(property_group, definition, re
                 is_property_group = isinstance(value, PropertyGroup)
                 child_property_group = value if is_property_group else None
 
-                value = property_group_value_to_custom_property_value(child_property_group, variant_definition, registry, parent=long_name, value=value)
+                value = property_group_value_to_custom_property_value(child_property_group, variant_definition, bevy, parent=long_name, value=value)
                 value = selected + str(value,) #"{}{},".format(selected ,value)
             elif "properties" in variant_definition:
                 value = getattr(property_group, variant_name)
                 is_property_group = isinstance(value, PropertyGroup)
                 child_property_group = value if is_property_group else None
 
-                value = property_group_value_to_custom_property_value(child_property_group, variant_definition, registry, parent=long_name, value=value)
+                value = property_group_value_to_custom_property_value(child_property_group, variant_definition, bevy, parent=long_name, value=value)
                 value = selected + str(value,)
             else:
                 value = getattr(property_group, variant_name)
                 is_property_group = isinstance(value, PropertyGroup)
                 child_property_group = value if is_property_group else None
                 if child_property_group:
-                    value = property_group_value_to_custom_property_value(child_property_group, variant_definition, registry, parent=long_name, value=value)
+                    value = property_group_value_to_custom_property_value(child_property_group, variant_definition, bevy, parent=long_name, value=value)
                     value = selected + str(value,)
                 else:
                     value = selected # here the value of the enum is just the name of the variant
@@ -124,9 +124,9 @@ def property_group_value_to_custom_property_value(property_group, definition, re
         value = []
         for item in item_list:
             item_long_name = getattr(item, "long_name")
-            definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
             if definition != None:
-                item_value = property_group_value_to_custom_property_value(item, definition, registry, long_name, None)
+                item_value = property_group_value_to_custom_property_value(item, definition, bevy, long_name, None)
                 if item_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
                     item_value = item_value[0]
             else:
@@ -140,9 +140,9 @@ def property_group_value_to_custom_property_value(property_group, definition, re
         for index, key in enumerate(keys_list):
             # first get the keys
             key_long_name = getattr(key, "long_name")
-            definition = registry.type_infos[key_long_name] if key_long_name in registry.type_infos else None
+            definition = bevy.type_data.type_infos[key_long_name] if key_long_name in bevy.type_data.type_infos else None
             if definition != None:
-                key_value = property_group_value_to_custom_property_value(key, definition, registry, long_name, None)
+                key_value = property_group_value_to_custom_property_value(key, definition, bevy, long_name, None)
                 if key_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
                     key_value = key_value[0]
             else:
@@ -150,9 +150,9 @@ def property_group_value_to_custom_property_value(property_group, definition, re
             # and then the values
             val = values_list[index]
             value_long_name = getattr(val, "long_name")
-            definition = registry.type_infos[value_long_name] if value_long_name in registry.type_infos else None
+            definition = bevy.type_data.type_infos[value_long_name] if value_long_name in bevy.type_data.type_infos else None
             if definition != None:
-                val_value = property_group_value_to_custom_property_value(val, definition, registry, long_name, None)
+                val_value = property_group_value_to_custom_property_value(val, definition, bevy, long_name, None)
                 if value_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
                     val_value = val_value[0]
             else:

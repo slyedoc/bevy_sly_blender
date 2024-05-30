@@ -7,9 +7,9 @@ from bpy_extras.io_utils import ImportHelper
 from ..settings import BevySettings
 
 
-class OT_OpenSchemaFileBrowser(Operator, ImportHelper):
+class OT_OpenRegistryFileBrowser(Operator, ImportHelper):
     """Browse for registry json file"""
-    bl_idname = "bevy.open_schemafilebrowser" 
+    bl_idname = "bevy.open_registryfilebrowser" 
     bl_label = "Open the file browser" 
 
     filter_glob: StringProperty( 
@@ -20,7 +20,7 @@ class OT_OpenSchemaFileBrowser(Operator, ImportHelper):
     def execute(self, context): 
         """Do something with the selected file(s)."""
         bevy = context.window_manager.bevy # type: BevySettings
-        bevy.schema_file = self.filepath
+        bevy.registry_file = self.filepath
         
         return {'FINISHED'}
     

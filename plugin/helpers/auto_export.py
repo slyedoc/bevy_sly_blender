@@ -4,21 +4,23 @@ import bpy
 import traceback
 import json
 
-from ..settings import BevySettings
-from ..util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MATERIALS_LIBRARY, EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, TEMPSCENE_PREFIX
+from pathlib import Path
+
+from ..settings import BevySettings, Blueprint, BlueprintData
+from ..util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MATERIALS_LIBRARY, EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, TEMPSCENE_PREFIX
 
 from .dynamic import is_object_dynamic, is_object_static
 from .generate_and_export import generate_and_export
 from .helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into
-from .export_materials import cleanup_materials, export_materials
+from .materials import cleanup_materials, clear_materials_scene, generate_materials_scene_content, get_all_materials
 from .object_makers import make_empty
 
 # IF collection_instances_combine_mode is not 'split' check for each scene if any object in changes_per_scene has an instance in the scene
-def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, collection_instances_combine_mode):
+def changed_object_in_scene(scene_name, changes_per_scene, data: BlueprintData, collection_instances_combine_mode) -> bool:
     # Embed / EmbedExternal
-    blueprints_from_objects = blueprints_data.blueprints_from_objects
+    blueprints_from_objects = data.blueprints_from_objects
 
-    blueprint_instances_in_scene = blueprints_data.blueprint_instances_per_main_scene.get(scene_name, None)
+    blueprint_instances_in_scene = data.blueprint_instances_per_main_scene.get(scene_name, None)
     if blueprint_instances_in_scene is not None:
         changed_objects = [object_name for change in changes_per_scene.values() for object_name in change.keys()] 
         changed_blueprints = [blueprints_from_objects[changed] for changed in changed_objects if changed in blueprints_from_objects]
@@ -30,7 +32,7 @@ def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, coll
 
         level_needs_export = False
         for blueprint_instance in changed_blueprint_instances:
-            blueprint = blueprints_data.blueprint_name_from_instances[blueprint_instance]
+            blueprint = data.blueprint_name_from_instances[blueprint_instance]
             combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else collection_instances_combine_mode
             #print("COMBINE MODE FOR OBJECT", combine_mode)
             if combine_mode == 'Embed':
@@ -46,9 +48,9 @@ def changed_object_in_scene(scene_name, changes_per_scene, blueprints_data, coll
     return False
 
 # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
-def get_levels_to_export(changes_per_scene, changed_export_parameters, bevy: BevySettings):
+def get_levels_to_export(changes_per_scene, changed_export_parameters, bevy: BevySettings) -> list[str]:
 
-    [main_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
+    [level_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
  
     def check_if_blueprint_on_disk(scene_name: str) -> bool:
         gltf_output_path = os.path.join(bevy.assets_path, LEVELS_PATH, scene_name + GLTF_EXTENSION)
@@ -58,17 +60,17 @@ def get_levels_to_export(changes_per_scene, changed_export_parameters, bevy: Bev
  
     # determine list of main scenes to export
     # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
-    main_scenes_to_export = [scene_name for scene_name in main_scene_names if not CHANGE_DETECTION 
+    main_scenes_to_export = [scene_name for scene_name in level_names if not CHANGE_DETECTION 
                              or changed_export_parameters 
                              or scene_name in changes_per_scene.keys() 
                              or changed_object_in_scene(scene_name, changes_per_scene, bevy.data, bevy.collection_instances_combine_mode) 
                              or not check_if_blueprint_on_disk(scene_name) ]
 
-    return (main_scenes_to_export)
+    return main_scenes_to_export
 
 
 # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
-def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bevy: BevySettings):
+def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bevy: BevySettings) -> list[Blueprint]:
 
     [main_scene_names, level_scenes, library_scene_names, library_scenes] = bevy.get_scenes()
     blueprints_to_export = []
@@ -122,7 +124,7 @@ def get_blueprints_to_export(changes_per_scene, changed_export_parameters, bevy:
 
     
     # changed/all blueprints to export     
-    return (blueprints_to_export)
+    return blueprints_to_export
 
 def ambient_color_to_component(world):
     color = None
@@ -194,7 +196,7 @@ def export_main_scene(scene, bevy: BevySettings):
                     blueprint_exported_path = os.path.join(bevy.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
                 else:
                     # get the injected path of the external blueprints
-                    blueprint_exported_path = blueprint.collection['Export_path'] if 'Export_path' in blueprint.collection else None
+                    blueprint_exported_path = blueprint.collection['export_path'] if 'export_path' in blueprint.collection else None
                     print("foo", dict(blueprint.collection))
                 if blueprint_exported_path is not None:
                     blueprint_assets_list.append({"name": blueprint.name, "path": blueprint_exported_path, "type": "MODEL", "internal": True})
@@ -312,41 +314,53 @@ def auto_export(changes_per_scene, changed_export_parameters, bevy: BevySettings
                     enabled = 'true' if light.use_shadow else 'false'
                     light['BlenderLightShadows'] = f"(enabled: {enabled}, buffer_bias: {light.shadow_buffer_bias})"
 
-        # export blueprints
-
-        (blueprints_to_export) = get_blueprints_to_export(changes_per_scene, changed_export_parameters, bevy)                     
-        (main_scenes_to_export) = get_levels_to_export(changes_per_scene, changed_export_parameters, bevy)
-
-        # since materials export adds components we need to call this before blueprints are exported
         # export materials & inject materials components into relevant objects
-        if EXPORT_MATERIALS_LIBRARY:
-            export_materials(bevy.data.blueprint_names, library_scenes, bevy)
+        # since materials export adds components we need to call this before blueprints are exported        
+        gltf_export_preferences = bevy.generate_gltf_export_preferences()
+        used_material_names = get_all_materials(bevy.data.blueprint_names, library_scenes)
+        current_project_name = Path(bpy.context.blend_data.filepath).stem                                
+        generate_and_export(
+            export_settings={ **gltf_export_preferences, 
+                'use_active_scene': True, 
+                'use_active_collection':True, 
+                'use_active_collection_with_nested':True,  
+                'use_visible': False,
+                'use_renderable': False,
+                'export_apply':True
+            },
+            temp_scene_name="__materials_scene",        
+            gltf_output_path=os.path.join(bevy.assets_path, MATERIALS_PATH, current_project_name + "_materials_library"),
+            tempScene_filler= lambda temp_collection: generate_materials_scene_content(temp_collection, used_material_names),
+            tempScene_cleaner= lambda temp_scene, params: clear_materials_scene(temp_scene=temp_scene)
+        )
+
+        # export blueprints and levels
+        blueprints_to_export = get_blueprints_to_export(changes_per_scene, changed_export_parameters, bevy)                     
+        levels_to_export = get_levels_to_export(changes_per_scene, changed_export_parameters, bevy)
 
         # update the list of tracked exports
-        exports_total = len(blueprints_to_export) + len(main_scenes_to_export) + (1 if EXPORT_MATERIALS_LIBRARY else 0)
+        exports_total = len(blueprints_to_export) + len((levels_to_export)) + (1 if EXPORT_MATERIALS_LIBRARY else 0)
         bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
         bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
         print("-------------------------------")
-        #print("collections:               all:", collections)
-        #print("collections: not found on disk:", collections_not_on_disk)
         print("BLUEPRINTS:    local/internal:", [blueprint.name for blueprint in bevy.data.internal_blueprints])
         print("BLUEPRINTS:          external:", [blueprint.name for blueprint in bevy.data.external_blueprints])
         print("BLUEPRINTS:         per_scene:", bevy.data.blueprints_per_scenes)
         print("-------------------------------")
-        print("BLUEPRINTS:          to export:", [blueprint.name for blueprint in blueprints_to_export])
+        print("BLUEPRINTS:         to export:", [blueprint.name for blueprint in blueprints_to_export])
         print("-------------------------------")
-        print("MAIN SCENES:         to export:", main_scenes_to_export)
+        print("LEVELS:             to export:", (levels_to_export))
         print("-------------------------------")
         # backup current active scene
         old_current_scene = bpy.context.scene
         # backup current selections
         old_selections = bpy.context.selected_objects
 
-        # first export any main/level/world scenes
-        if len(main_scenes_to_export) > 0:
+        # first export levels
+        if len((levels_to_export)) > 0:
             print("export MAIN scenes")
-            for scene_name in main_scenes_to_export:
+            for scene_name in (levels_to_export):
                 export_main_scene(bpy.data.scenes[scene_name], bevy)
 
         # now deal with blueprints/collections

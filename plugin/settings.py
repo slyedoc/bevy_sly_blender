@@ -1,19 +1,31 @@
 import json
 import bpy
 import os
+import time
+import uuid
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
-from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProperty, PointerProperty, EnumProperty)
 
+from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProperty, PointerProperty, EnumProperty, FloatProperty,FloatVectorProperty )
+
+from plugin.components_meta import add_metadata_to_components_without_metadata
 from plugin.helpers.generate_and_export import generate_and_export
 from plugin.helpers.helpers_scenes import clear_hollow_scene, copy_hollowed_collection_into
+from plugin.propGroups.process_component import process_component
+from plugin.propGroups.prop_groups import update_component
+from plugin.propGroups.utils import update_calback_helper
 
 from .util import BLUEPRINTS_PATH, EXPORT_MARKED_ASSETS, EXPORT_MATERIALS_LIBRARY, SETTING_NAME, TEMPSCENE_PREFIX
 
 class SceneSelector(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty() # type: ignore
     display: bpy.props.BoolProperty() # type: ignore
+
+class RegistryType(bpy.types.PropertyGroup):
+    short_name: bpy.props.StringProperty() # type: ignore
+    long_name: bpy.props.StringProperty() # type: ignore
 
 # blueprint data
 @dataclass
@@ -51,33 +63,95 @@ class Blueprint:
     def __str__(self):
         return f'Name: "{self.name}", Local: {self.local}, Scene: {self.scene}, Instances: {self.instances},  Objects: {self.objects}, nested_blueprints: {self.nested_blueprints}'
 
-# auto save to a text datablock
-# TODO: serialized manually feels stupid
-def save_settings(self, context):
-    json_str = json.dumps({ 
-        'mode': self.mode,
-        'schema_file': self.schema_file,
-        'assets_path': self.assets_path,
-        'auto_export': self.auto_export,
-        'main_scene_names': [scene.name for scene in self.main_scenes],
-        'library_scene_names': [scene.name for scene in self.library_scenes],
-    })
-    # update or create the text datablock
-    if SETTING_NAME in bpy.data.texts:
-        bpy.data.texts[SETTING_NAME].clear()
-        bpy.data.texts[SETTING_NAME].write(json_str)
+@dataclass
+class RegistryData:
+    type_infos: Dict[str, Any]
+    type_infos_missing: List[str]
+    component_propertyGroups: Dict[str, Any] 
+    custom_types_to_add: Dict[str, Any]
+    invalid_components: List[str]
+    long_names_to_propgroup_names: Dict[str, str]    
+
+    def __init__(self):
+        self.type_infos = {}
+        self.type_infos_missing = []
+        self.component_propertyGroups = {}
+        self.custom_types_to_add = {}
+        self.invalid_components = []
+        self.long_names_to_propgroup_names = {}
+    
+# helper class to store missing bevy types information
+class MissingBevyType(bpy.types.PropertyGroup):
+    long_name: bpy.props.StringProperty(
+        name="type",
+    ) # type: ignore
+
+# helper function to deal with timer
+def toggle_watcher(self, context):
+    #print("toggling watcher", self.watcher_enabled, watch_schema, self, bpy.app.timers)
+    if not self.watcher_enabled:
+        try:
+            bpy.app.timers.unregister(watch_registry)
+        except Exception as error:
+            pass
     else:
-        stored_settings = bpy.data.texts.new(SETTING_NAME)
-        stored_settings.write(json_str)
-    return None        
+        self.watcher_active = True
+        bpy.app.timers.register(watch_registry)
+
+def watch_registry():
+    self = bpy.context.window_manager.bevy # type: BevySettings
+    # print("watching schema file for changes")
+    try:
+        stamp = os.stat(self.registry_file).st_mtime
+        stamp = str(stamp)
+        if stamp != self.registry_timestamp and self.registry_timestamp != "":
+            print("FILE CHANGED !!", stamp,  self.registry_timestamp)
+            # see here for better ways : https://stackoverflow.com/questions/11114492/check-if-a-file-is-not-open-nor-being-used-by-another-process
+            
+            # TODO: this should be enabled i think
+            #bpy.ops.object.reload_registry()
+            # we need to add an additional delay as the file might not have loaded yet
+            bpy.app.timers.register(lambda: bpy.ops.object.reload_registry(), first_interval=1)
+        self.registry_timestamp = stamp
+    except Exception as error:
+        pass
+    return self.watcher_poll_frequency if self.watcher_enabled else None
+
+
+
  
 class BevySettings(bpy.types.PropertyGroup):   
+    # registry data
+    type_data: RegistryData = RegistryData()
+    
+    def save_settings(self, context):
+        json_str = json.dumps({ 
+            'mode': self.mode,
+            'registry_file': self.registry_file,
+            'assets_path': self.assets_path,
+            'auto_export': self.auto_export,
+            'main_scene_names': [scene.name for scene in self.main_scenes],
+            'library_scene_names': [scene.name for scene in self.library_scenes],
+        })
+        # update or create the text datablock
+        if SETTING_NAME in bpy.data.texts:
+            bpy.data.texts[SETTING_NAME].clear()
+            bpy.data.texts[SETTING_NAME].write(json_str)
+        else:
+            stored_settings = bpy.data.texts.new(SETTING_NAME)
+            stored_settings.write(json_str)
+
+        # update the registry in case the file has changed
+        self.load_registry()
+
+        return None       
+    
     #
     # Blueprint Data
-    #
-    data = BlueprintData
-    blueprints_list = [] # not this may be going away
-    
+    # 
+    data: BlueprintData = BlueprintData
+    blueprints_list = [] # type: list[Blueprint]
+
     #
     # User Setttings
     #
@@ -88,7 +162,7 @@ class BevySettings(bpy.types.PropertyGroup):
         options={'HIDDEN'},
         update= save_settings
     ) # type: ignore
-    schema_file: StringProperty(
+    registry_file: StringProperty(
         name='Schema File',
         description='The registry.json file',
         default='./assets/registry.json',
@@ -103,8 +177,9 @@ class BevySettings(bpy.types.PropertyGroup):
     ) # type: ignore
     main_scenes: CollectionProperty(name="main scenes",type=SceneSelector) # type: ignore
     library_scenes: CollectionProperty(name="library scenes", type=SceneSelector ) # type: ignore
-    # TODO: ui disabled for this, right now assuming default
+
     collection_instances_combine_mode : EnumProperty(
+        # TODO: go over this again
         name='Collection instances',
         items=(
            ('Split', 'Split', 'replace collection instances with an empty + blueprint, creating links to sub blueprints (Default, Recomended)'),
@@ -114,7 +189,6 @@ class BevySettings(bpy.types.PropertyGroup):
         ),
         default='Split'
     ) # type: ignore
-
 
     # 
     # UI settings
@@ -131,6 +205,52 @@ class BevySettings(bpy.types.PropertyGroup):
     ) # type: ignore    
     main_scenes_index: IntProperty(name = "Index for main scenes list", default = 0, update= save_settings) # type: ignore    
     library_scenes_index: IntProperty(name = "Index for library scenes list", default = 0, update= save_settings) # type: ignore    
+    # list of componets to show in the ui, will be filtered by ComponentDefinitionsList
+    ui_components: CollectionProperty(name="ui_components",type=RegistryType) # type: ignore
+
+    #
+    # Componet Registry
+    #
+    missing_type_infos: StringProperty(
+        name="missing type infos",
+        description="unregistered/missing type infos"
+    )# type: ignore
+    disable_all_object_updates: BoolProperty(name="disable_object_updates", default=False) # type: ignore
+    
+    ## file watcher
+    watcher_enabled: BoolProperty(name="Watcher_enabled", default=True, update=toggle_watcher)# type: ignore
+    watcher_active: BoolProperty(name = "Flag for watcher status", default = False)# type: ignore
+    watcher_poll_frequency: IntProperty(
+        name="watcher poll frequency",
+        description="frequency (s) at wich to poll for changes to the registry file",
+        min=1,
+        max=10,
+        default=1
+    )# type: ignore
+    registry_timestamp: StringProperty(
+        name="last timestamp of schema file",
+        description="",
+        default=""
+    )# type: ignore
+    missing_types_list: CollectionProperty(name="missing types list", type=MissingBevyType)# type: ignore
+    missing_types_list_index: IntProperty(name = "Index for missing types list", default = 0)# type: ignore
+
+    #type_infos = {}
+    #type_infos_missing = []
+    #component_propertyGroups = {}
+    #custom_types_to_add = {}
+    #invalid_components = []
+    propGroupIdCounter: IntProperty(
+        name="propGroupIdCounter",
+        description="",
+        min=0,
+        max=1000000000,
+        default=0
+    ) # type: ignore
+    #long_names_to_propgroup_names = {}
+
+    def __init__(self):
+        self.type_data = RegistryData()
 
     @classmethod
     def register(cls):
@@ -231,7 +351,7 @@ class BevySettings(bpy.types.PropertyGroup):
         stored_settings = bpy.data.texts[SETTING_NAME] if SETTING_NAME in bpy.data.texts else None        
         if stored_settings != None:
             settings =  json.loads(stored_settings.as_string())        
-            for prop in ['assets_path', 'schema_file', 'auto_export', 'mode']:
+            for prop in ['assets_path', 'registry_file', 'auto_export', 'mode']:
                 if prop in settings:
                     setattr(self, prop, settings[prop])
             if "main_scene_names" in settings:
@@ -242,9 +362,11 @@ class BevySettings(bpy.types.PropertyGroup):
                 for name in settings["library_scene_names"]:
                     added = self.library_scenes.add()
                     added.name = name
-
+        print(f"loaded settings",)
+        
         # save the setting back, so its updated if need be, or default added if need be
-        save_settings(self, bpy.context)
+        # this will also call load_registry
+        self.save_settings(None)
 
     def add_blueprint(self, blueprint): 
         self.blueprints_list.append(blueprint)
@@ -442,7 +564,7 @@ class BevySettings(bpy.types.PropertyGroup):
             blueprint_name_from_instances=blueprint_name_from_instances
         )
 
-    def export_blueprints(self, blueprints):
+    def export_blueprints(self, blueprints):        
         gltf_export_preferences = self.generate_gltf_export_preferences()
         
         try:
@@ -468,9 +590,122 @@ class BevySettings(bpy.types.PropertyGroup):
                     tempScene_cleaner= lambda temp_scene, params: clear_hollow_scene(original_root_collection=collection, temp_scene=temp_scene)
                 )
 
+                # TODO: REMOVE ME, testing idea
+                # time.sleep(0.1)
+
             # reset active collection to the one we save before
             bpy.context.view_layer.active_layer_collection = active_collection
 
         except Exception as error:
             print("failed to export collections to gltf: ", error)
             raise error
+        
+    def has_type_infos(self):
+        return len(self.type_data.type_infos.keys()) != 0
+
+    def load_registry(self):
+        # cleanup previous data and ui data
+        self.propGroupIdCounter = 0
+        self.missing_types_list.clear()
+
+        # create new registry data
+        # IMPORTANT: This does not work
+        #   self.type_data = RegistryData()
+        # This does, python fml
+        self.type_data.type_infos.clear()
+        self.type_data.type_infos_missing.clear()
+        self.type_data.component_propertyGroups.clear()
+        self.type_data.custom_types_to_add.clear()
+        self.type_data.invalid_components.clear()
+        self.type_data.long_names_to_propgroup_names.clear()
+        
+        # load registry file if it exists
+        if os.path.exists(self.registry_file):            
+            try:
+                with open(self.registry_file) as f:
+                    data = json.load(f)
+                    defs = data.get("$defs", {})
+                    self.type_data.type_infos = defs                                        
+            except (IOError, json.JSONDecodeError) as e:
+                print(f"ERROR: An error occurred while reading the file: {e}")
+                return
+        else:
+            print(f"WARN: registy file does not exist: {self.registry_file}")
+            return
+
+        # Generate propertyGroups for all components
+        for component_name in self.type_data.type_infos:
+            definition = self.type_data.type_infos[component_name]
+            is_component = definition['isComponent'] if "isComponent" in definition else False
+            root_property_name = component_name if is_component else None
+            process_component(self, definition, update_calback_helper(definition, update_component, root_property_name), None, [])
+
+        # if we had to add any wrapper types on the fly, process them now
+        for long_name in self.type_data.custom_types_to_add:
+            self.type_data.type_infos[long_name] = self.type_data.custom_types_to_add[long_name]
+        self.type_data.custom_types_to_add.clear() 
+
+        # build ui list of components, from new registry data
+        self.ui_components.clear()
+        exclude = ['Parent', 'Children', 'Handle', 'Cow', 'AssetId']         
+        sorted_components = sorted(
+            ((long_name, definition["short_name"]) for long_name, definition in self.type_data.type_infos.items()
+            if definition.get("isComponent", False) and not any(definition["short_name"].startswith(ex) for ex in exclude)),
+            key=lambda item: item[1]  # Sort by short_name
+        )               
+        for long_name, short_name in sorted_components:
+            added = self.ui_components.add()
+            added.long_name = long_name
+            added.short_name = short_name
+
+        # start timer
+        # TODO: default start to now, right now we always trigger at start
+        if not self.watcher_active and self.watcher_enabled:
+            self.watcher_active = True
+            bpy.app.timers.register(watch_registry)
+
+        #// how can self.type_infos 616, then 0 everywhere else ?
+        print(f"INFO: loaded {len(self.type_data.type_infos)} types from registry file: {self.registry_file}")
+
+        # ensure metadata for allobjects
+        # FIXME: feels a bit heavy duty, should only be done
+        # if the components panel is active ?
+        for object in bpy.data.objects:
+            add_metadata_to_components_without_metadata(object)
+
+    # TODO: move to registry data    
+    # we keep a list of component propertyGroup around 
+    def register_component_propertyGroup(self, name, propertyGroup):
+        self.type_data.component_propertyGroups[name] = propertyGroup
+
+    # TODO: move to registry data
+    # to be able to give the user more feedback on any missin/unregistered types in their registry file
+    def add_missing_typeInfo(self, long_name):
+        if not long_name in self.type_data.type_infos_missing:
+            self.type_data.type_infos_missing.append(long_name)            
+            setattr(self, "missing_type_infos", str(self.type_data.type_infos_missing))
+            item = self.missing_types_list.add()
+            item.long_name = long_name
+
+    # TODO: move to registry data
+    def add_custom_type(self, long_name, type_definition):
+        self.type_data.custom_types_to_add[long_name] = type_definition
+
+
+    # TODO: move to registry data
+    # add an invalid component to the list (long name)
+    def add_invalid_component(self, component_name):
+        self.type_data.invalid_components.append(component_name)
+
+    # generate propGroup name from nesting level & shortName: each shortName + nesting is unique
+    def generate_propGroup_name(self, nesting, longName):
+        #print("gen propGroup name for", shortName, nesting)
+        self.propGroupIdCounter += 1
+
+        propGroupIndex = str(self.propGroupIdCounter)
+        propGroupName = propGroupIndex + "_ui"
+
+        key = str(nesting) + longName if len(nesting) > 0 else longName
+        self.type_data.long_names_to_propgroup_names[key] = propGroupName
+        return propGroupName
+ 

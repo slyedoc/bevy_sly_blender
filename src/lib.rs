@@ -107,7 +107,10 @@ impl Plugin for BlenderPlugin {
 
         app
             // custom components
-            .add_plugins(lighting::plugin)
+            .add_plugins((
+                lighting::plugin,
+                components::plugin,
+            ))
             
             // rest
             .register_type::<BlueprintName>()

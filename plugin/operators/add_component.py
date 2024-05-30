@@ -1,8 +1,11 @@
 import ast
 import json
 import bpy
+
 from bpy_types import Operator
 from bpy.props import (StringProperty)
+
+from ..settings import BevySettings
 
 from ..components_meta import add_component_to_object
 
@@ -19,13 +22,13 @@ class AddComponentOperator(Operator):
 
     def execute(self, context):
         object = context.object
-        component_registry = context.window_manager.components_registry
-        type_infos = component_registry.type_infos
+        bevy = context.window_manager.bevy # type: BevySettings        
         print("adding component ", self.component_type, "to object  '"+object.name+"'")
     
         has_component_type = self.component_type != ""
+
         if has_component_type and object != None:
-            component_definition = type_infos[self.component_type]
+            component_definition = bevy.type_data.type_infos[self.component_type]
             add_component_to_object(object, component_definition)
 
         return {'FINISHED'}

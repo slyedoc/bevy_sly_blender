@@ -1,6 +1,8 @@
 from bpy_types import PropertyGroup
 import re
 
+from ..util import VALUE_TYPES_DEFAULTS
+
 def parse_struct_string(string, start_nesting=0):
     #print("processing struct string", string, "start_nesting", start_nesting)
     fields = {}
@@ -167,27 +169,24 @@ type_mappings = {
     'bevy_ecs::entity::Entity': lambda value: int(value),
 }
 
-def is_def_value_type(definition, registry):
+def is_def_value_type(definition):
     if definition == None:
-        return True
-    value_types_defaults = registry.value_types_defaults
+        return True    
     long_name = definition["long_name"]
-    is_value_type = long_name in value_types_defaults
+    is_value_type = long_name in VALUE_TYPES_DEFAULTS
     return is_value_type
 
 #converts the value of a single custom property into a value (values) of a property group 
-def property_group_value_from_custom_property_value(property_group, definition, registry, value, nesting = []):
-    value_types_defaults = registry.value_types_defaults
+def property_group_value_from_custom_property_value(property_group, definition, bevy, value, nesting = []):
+        
     type_info = definition["typeInfo"] if "typeInfo" in definition else None
     type_def = definition["type"] if "type" in definition else None
     properties = definition["properties"] if "properties" in definition else {}
     prefixItems = definition["prefixItems"] if "prefixItems" in definition else []
     long_name = definition["long_name"]
-
-    #is_value_type = type_def in value_types_defaults or long_name in value_types_defaults
-    is_value_type = long_name in value_types_defaults
+    
+    is_value_type = long_name in VALUE_TYPES_DEFAULTS
     nesting = nesting + [definition["short_name"]]
-
 
     if is_value_type:
         value = value.replace("(", "").replace(")", "")# FIXME: temporary, incoherent use of nesting levels between parse_tuplestruct_string & parse_struct_string
@@ -198,7 +197,7 @@ def property_group_value_from_custom_property_value(property_group, definition, 
             custom_property_values = parse_struct_string(value, start_nesting=1 if value.startswith("(") else 0)
             for index, field_name in enumerate(property_group.field_names):
                 item_long_name = definition["properties"][field_name]["type"]["$ref"].replace("#/$defs/", "")
-                item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+                item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
                 custom_prop_value = custom_property_values[field_name]
                 #print("field name", field_name, "value", custom_prop_value)
@@ -206,11 +205,11 @@ def property_group_value_from_custom_property_value(property_group, definition, 
                 is_property_group = isinstance(propGroup_value, PropertyGroup)
                 child_property_group = propGroup_value if is_property_group else None
                 if item_definition != None:
-                    custom_prop_value = property_group_value_from_custom_property_value(child_property_group, item_definition, registry, value=custom_prop_value, nesting=nesting)
+                    custom_prop_value = property_group_value_from_custom_property_value(child_property_group, item_definition, bevy, value=custom_prop_value, nesting=nesting)
                 else:
                     custom_prop_value = custom_prop_value
 
-                if is_def_value_type(item_definition, registry):
+                if is_def_value_type(item_definition):
                     setattr(property_group , field_name, custom_prop_value)
                
 
@@ -224,7 +223,7 @@ def property_group_value_from_custom_property_value(property_group, definition, 
 
         for index, field_name in enumerate(property_group.field_names):
             item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
-            item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
             
             custom_property_value = custom_property_values[index]
 
@@ -232,15 +231,15 @@ def property_group_value_from_custom_property_value(property_group, definition, 
             is_property_group = isinstance(propGroup_value, PropertyGroup)
             child_property_group = propGroup_value if is_property_group else None
             if item_definition != None:
-                custom_property_value = property_group_value_from_custom_property_value(child_property_group, item_definition, registry, value=custom_property_value, nesting=nesting)
-            if is_def_value_type(item_definition, registry):
+                custom_property_value = property_group_value_from_custom_property_value(child_property_group, item_definition, bevy, value=custom_property_value, nesting=nesting)
+            if is_def_value_type(item_definition):
                 setattr(property_group , field_name, custom_property_value)
 
     elif type_info == "TupleStruct":
         custom_property_values = parse_tuplestruct_string(value, start_nesting=1 if len(nesting) == 1 else 0)
         for index, field_name in enumerate(property_group.field_names):
             item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
-            item_definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            item_definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
             custom_prop_value = custom_property_values[index]
 
@@ -248,9 +247,9 @@ def property_group_value_from_custom_property_value(property_group, definition, 
             is_property_group = isinstance(value, PropertyGroup)
             child_property_group = value if is_property_group else None
             if item_definition != None:
-                custom_prop_value = property_group_value_from_custom_property_value(child_property_group, item_definition, registry, value=custom_prop_value, nesting=nesting)
+                custom_prop_value = property_group_value_from_custom_property_value(child_property_group, item_definition, bevy, value=custom_prop_value, nesting=nesting)
 
-            if is_def_value_type(item_definition, registry):
+            if is_def_value_type(item_definition, bevy):
                     setattr(property_group , field_name, custom_prop_value)
 
     elif type_info == "Enum":
@@ -277,14 +276,14 @@ def property_group_value_from_custom_property_value(property_group, definition, 
                 child_property_group = value if is_property_group else None
                 
                 chosen_variant_value = "(" +chosen_variant_value +")" # needed to handle nesting correctly
-                value = property_group_value_from_custom_property_value(child_property_group, variant_definition, registry, value=chosen_variant_value, nesting=nesting)
+                value = property_group_value_from_custom_property_value(child_property_group, variant_definition, bevy, value=chosen_variant_value, nesting=nesting)
                 
             elif "properties" in variant_definition:
                 value = getattr(property_group, chosen_variant_name)
                 is_property_group = isinstance(value, PropertyGroup)
                 child_property_group = value if is_property_group else None
 
-                value = property_group_value_from_custom_property_value(child_property_group, variant_definition, registry, value=chosen_variant_value, nesting=nesting)
+                value = property_group_value_from_custom_property_value(child_property_group, variant_definition, bevy, value=chosen_variant_value, nesting=nesting)
                 
         else:
             chosen_variant_raw = value
@@ -299,10 +298,10 @@ def property_group_value_from_custom_property_value(property_group, definition, 
         for raw_value in custom_property_values:
             new_entry = item_list.add()   
             item_long_name = getattr(new_entry, "long_name") # we get the REAL type name
-            definition = registry.type_infos[item_long_name] if item_long_name in registry.type_infos else None
+            definition = bevy.type_data.type_infos[item_long_name] if item_long_name in bevy.type_data.type_infos else None
 
             if definition != None:
-                property_group_value_from_custom_property_value(new_entry, definition, registry, value=raw_value, nesting=nesting)            
+                property_group_value_from_custom_property_value(new_entry, definition, bevy, value=raw_value, nesting=nesting)            
     else:
         try:
             value = value.replace("(", "").replace(")", "")# FIXME: temporary, incoherent use of nesting levels between parse_tuplestruct_string & parse_struct_string

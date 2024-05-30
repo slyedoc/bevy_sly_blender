@@ -1,8 +1,12 @@
+use crate::{ronstring_to_reflect_component, GltfBlueprintsSet};
 use bevy::{
-    ecs::{component::Component, reflect::ReflectComponent, world::World}, gltf::GltfExtras, prelude::*, reflect::{Reflect, TypeRegistration}, utils::HashMap
-};
-use crate::{ronstring_to_reflect_component, GltfBlueprintsSet };
+    prelude::*,
+    ecs::{component::Component, reflect::ReflectComponent, world::World},
+    gltf::GltfExtras,
 
+    reflect::{Reflect, TypeRegistration},
+    utils::HashMap,
+};
 
 pub fn plugin(app: &mut App) {
     app
@@ -26,7 +30,7 @@ pub fn add_components_from_gltf_extras(world: &mut World) {
         HashMap::new();
 
     for (entity, name, extra, parent) in extras.iter(world) {
-        debug!(
+        info!(
             "Name: {}, entity {:?}, parent: {:?}, extras {:?}",
             name, entity, parent, extra
         );

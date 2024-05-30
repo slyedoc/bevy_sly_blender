@@ -7,6 +7,12 @@ from . import process_enum
 from . import process_list
 from . import process_map
 
+# TODO: so this kinda blew my mind because not only does it recursively handle nested components, 
+# and all the different types, but ithen it generates __annotations__ which is a special class definition
+# system just for blender, and it does this by creating a new class with the type() function
+# becuase blender and python ...reasons and
+
+
 def process_component(registry, definition, update, extras=None, nesting = [], nesting_long_names = []):
     long_name = definition['long_name']
     short_name = definition["short_name"]

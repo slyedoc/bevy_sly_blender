@@ -30,10 +30,10 @@ pub fn add_components_from_gltf_extras(world: &mut World) {
         HashMap::new();
 
     for (entity, name, extra, parent) in extras.iter(world) {
-        info!(
-            "Name: {}, entity {:?}, parent: {:?}, extras {:?}",
-            name, entity, parent, extra
-        );
+        // info!(
+        //     "Name: {}, entity {:?}, parent: {:?}, extras {:?}",
+        //     name, entity, parent, extra
+        // );
 
         let type_registry: &AppTypeRegistry = world.resource();
         let type_registry = type_registry.read();

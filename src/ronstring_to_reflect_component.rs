@@ -83,8 +83,12 @@ fn components_string_to_components(
         debug!("real type {:?}", component.get_represented_type_info());
         components.push((component, type_registration.clone()));
         debug!("found type registration for {}", capitalized_type_name);
-    } else {
-        warn!("no type registration for {}", capitalized_type_name);
+    } else {        
+        // Components_meta self made, rest are 3rd party plugins in blender I have
+        let ignore = vec!["Components_meta", "Plating_generator", "Shipwright_collection", "Shape_generator_collection"];
+        if !ignore.contains(&capitalized_type_name.as_str()) {
+            warn!("no type registration for {}", capitalized_type_name);
+        }
     }
 }
 

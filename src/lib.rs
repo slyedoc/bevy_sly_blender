@@ -93,6 +93,7 @@ impl Default for BlenderPlugin {
 
 impl Plugin for BlenderPlugin {
     fn build(&self, app: &mut App) {
+
         #[cfg(feature = "registry")]
         {
             // hack to get the asset path, could be removed?
@@ -106,10 +107,9 @@ impl Plugin for BlenderPlugin {
         }
 
         app
-            // custom components
             .add_plugins((
-                lighting::plugin,
-                components::plugin,
+                lighting::plugin, // custom lighting 
+                components::plugin, // spawn components from gltf extras
             ))
             
             // rest

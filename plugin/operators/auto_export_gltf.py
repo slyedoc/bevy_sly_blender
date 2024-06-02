@@ -2,27 +2,13 @@ import json
 import bpy
 
 from ..auto_export_tracker import AutoExportTracker
-
 from ..settings import BevySettings
-from ..helpers.auto_export import auto_export
 
 class AutoExportGLTF(bpy.types.Operator):
     bl_idname = "export_scenes.auto_gltf"
     bl_label = "Apply settings"
     bl_options = {'PRESET'} 
     # we do not add UNDO otherwise it leads to an invisible operation that resets the state of the saved serialized scene, breaking compares for normal undo/redo operations
-    # ExportHelper mixin class uses this
-    #filename_ext = ''
-    #filepath: bpy.props.StringProperty(subtype="FILE_PATH", default="") # type: ignore
-
-    #list of settings (other than purely gltf settings) whose change should trigger a re-generation of gltf files
-    white_list = [
-        'change_detection',
-        'export_scene_settings',
-        'main_scene_names',
-        'library_scene_names',
-        'collection_instances_combine_mode',
-    ]
 
     @classmethod
     def register(cls):
@@ -31,31 +17,6 @@ class AutoExportGLTF(bpy.types.Operator):
     @classmethod
     def unregister(cls):
        pass
-
-    # will come back to this
-    # def format_settings(self):
-    #     # find all props to save
-    #     exceptional = [
-    #         # options that don't start with 'export_'  
-    #         'collection_instances_combine_mode',
-    #     ]
-    #     all_props = self.properties
-    #     export_props = {
-    #         x: getattr(self, x) for x in dir(all_props)
-    #         if (x.startswith("export_") or x in exceptional) and all_props.get(x) is not None
-    #     }
-    #     # we inject all that we need, the above is not sufficient
-    #     for (k, v) in self.properties.items():
-    #         if k in self.white_list or k not in AutoExportGltfPreferenceNames:
-    #             value = v
-    #             # FIXME: really weird having to do this
-    #             if k == "collection_instances_combine_mode":
-    #                 value = self.collection_instances_combine_mode
-    #             if k == "export_materials":
-    #                 value = self.export_materials
-    #             export_props[k] = value
-    #     # we add main & library scene names to our preferences
-    #     return export_props
     
     """
     This should ONLY be run when actually doing exports/aka calling auto_export function, because we only care about the difference in settings between EXPORTS
@@ -123,13 +84,18 @@ class AutoExportGLTF(bpy.types.Operator):
 
         if bevy.auto_export: # only do the actual exporting if auto export is actually enabled
             print("auto export")
+
             #changes_per_scene = context.window_manager.auto_export_tracker.changed_objects_per_scene
             #& do the export
             # determine changed objects
             changes_per_scene = self.did_objects_change()
             # determine changed parameters 
+            # TODO: Assming true for now
             params_changed = self.did_export_settings_change()
-            auto_export(changes_per_scene, params_changed, bevy)
+            
+            # do the export
+            bevy.export(changes_per_scene, params_changed)
+            
             # cleanup 
             # reset the list of changes in the tracker
             auto_export_tracker.clear_changes()

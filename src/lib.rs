@@ -111,7 +111,6 @@ impl Plugin for BlenderPlugin {
                 lighting::plugin, // custom lighting 
                 components::plugin, // spawn components from gltf extras
             ))
-            
             // rest
             .register_type::<BlueprintName>()
             .register_type::<materials::MaterialInfo>()

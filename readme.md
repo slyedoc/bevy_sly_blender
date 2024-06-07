@@ -1,21 +1,20 @@
 # Blender plugin for bevy
 
-> This completely based off [Blender_bevy_components_workflow](https://github.com/kaosat-dev/Blender_bevy_components_workflow/)
-> A ton of work has gone into it really has working code that does a ton.  Every bit of functionality comes from there.  I'm trying to simplify it a bit and unroll things.  Losing some customization.
+> This is completely based off [Blender_bevy_components_workflow](https://github.com/kaosat-dev/Blender_bevy_components_workflow/)
+> A ton of work has gone into it really has working code that does a ton.  Nearly every bit of functionality comes from there.  I was having trouble understanding it and started refactoring it so I understood it better and > I have gotten carried away. I haven't done much with blender and would rather be in rust then python.
 
 Currently focused on an ideal happy path rather supporting every use case.
 
-# Big Issues
+Using blender 4.2 main branch, there is a bug causing crashes during gltf export that is fixed on main.
 
-  Blender crashes getting all kinda of random blender crashes when exporting, some notes on tracking that down :
-    bpy.ops.object.editmode_toggle()  # Operator
-  
-  
-  Spend more hours than I will admit trying to track down blender crash when running export, would sometimes work, and not other, but consistently, last thing you see is "INFO: Starting glTF 2.0 export" and crash report all it was in gltf_exporter.  Turns out have 2 blender instances open at the same time, and running the export in one, while the other is open, will cause the crash.  So if you are having the same issue, close the other blender instance.
+Also using main branch for gltf export plugin.
 
 ## Goals
 
 - [ ] Docs
+- [ ] Flatten Entity Hierarchy - hate having so many, Level>Scene>Instance(Blueprint)>Collection Root>children feels so un ECS,
+ makes normal querying a pain.  
+ - Have tried ever way I can think of using SceneBundle system, but it forces create new entity, working on by passing it entirely (see [spawn_from_bluerpint.rs](./src/spawn_from_blueprints.rs)).
 - [X] Collaspse blender plugins
   - [X] Unify settings
   - [X] flatten structure  
@@ -36,11 +35,11 @@ Currently focused on an ideal happy path rather supporting every use case.
   - [ ] Rename main scenes
   - [ ] removing the nesting structure for levels, and instead tag items with a level component
 - [ ] Blueprints
-  - [ ] Removed BlueprintsLists and blueprint nesting, for now, will simplify more and revisit that
+  - Removed BlueprintsLists and blueprint nesting, for now, will simplify more and revisit that
 - [ ] GLTF settings capture by watching all operations
 
 ## Noteable files
 
-- [\_\_init\_\_.py](./plugin/__init__.py) - Main entry point, setup global data
-- [settings.py](./plugin/settings.py) - Saved Settings
+- [\_\_init\_\_.py](./plugin/__init__.py) - Main entry point, wire everything up
+- [settings.py](./plugin/settings.py) - Settings, using as App world pretty much
 - [ui/main.py](./plugin/ui/main.py) - UI

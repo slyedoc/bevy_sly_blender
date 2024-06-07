@@ -186,11 +186,12 @@ class BevySettings(bpy.types.PropertyGroup):
         name='Collection instances',
         items=(
            ('Split', 'Split', 'replace collection instances with an empty + blueprint, creating links to sub blueprints (Default, Recomended)'),
+           # TODO: what use case is this for ?, made everything a bit more complex
            ('Embed', 'Embed', 'treat collection instances as embeded objects and do not replace them with an empty'),
            ('EmbedExternal', 'EmbedExternal', 'treat instances of external (not specifified in the current blend file) collections (aka assets etc) as embeded objects and do not replace them with empties'),
            #('Inject', 'Inject', 'inject components from sub collection instances into the curent object')
         ),
-        default='Embed'
+        default='Split'
     ) # type: ignore
 
     # 

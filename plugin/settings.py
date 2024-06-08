@@ -642,11 +642,13 @@ class BevySettings(bpy.types.PropertyGroup):
                 collection = bpy.data.collections[blueprint.name]
                 # do the actual export
                 self.generate_and_export(
-                    settings={ 
+                    settings={
                         'use_active_scene': True, 
                         'use_active_collection': True, 
-                        'use_active_collection_with_nested':True , 
-                        'export_materials': 'PLACEHOLDER' # we are using material library, so we dont need to export materials
+                        'use_active_collection_with_nested':True, 
+                        'export_materials': 'PLACEHOLDER', # we are using material library, so we dont need to export materials                                                        
+                        'use_visible': False,                        
+                        'export_apply': True, 
                     },
                     gltf_output_path=gltf_output_path,
                     temp_scene_name=TEMPSCENE_PREFIX+collection.name,                                        
@@ -1184,7 +1186,7 @@ class BevySettings(bpy.types.PropertyGroup):
             use_active_collection= False,
             use_active_collection_with_nested=False,
             use_active_scene = False,
-            export_apply=False,
+            export_apply=False, # TODO: think i turn this on everywhere we are called
 
             # TODO: add animations back                         
             #export_draco_mesh_compression_enable=True,

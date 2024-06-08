@@ -1,19 +1,19 @@
 use bevy::{math::Vec3A, prelude::*, render::primitives::Aabb};
 
-use crate::{BlenderPluginConfig, Spawned};
+use crate::{BlenderPluginConfig, BlueprintSpawned};
 
 /// helper system that computes the compound aabbs of the scenes/blueprints
 pub fn compute_scene_aabbs(
-    root_entities: Query<(Entity, &Name), (With<Spawned>, Without<Aabb>)>,
+    mut spawn_events: EventReader<BlueprintSpawned>,
+    root_entities: Query<(Entity, &Name), Without<Aabb>>,
     children: Query<&Children>,
     existing_aabbs: Query<&Aabb>,
-
     mut blueprints_config: ResMut<BlenderPluginConfig>,
     mut commands: Commands,
 ) {
-    // compute compound aabb
-    for (root_entity, name) in root_entities.iter() {
-        info!("generating aabb for {:?}", name);
+    for e in spawn_events.read() {
+        let (root_entity, name) = root_entities.get(e.0).unwrap();
+        info!("generate aabb for {:?} {:?}", name, e);
 
         // only recompute aabb if it has not already been done before
         if blueprints_config.aabb_cache.contains_key(&name.to_string()) {
@@ -29,6 +29,7 @@ pub fn compute_scene_aabbs(
         }
     }
 }
+
 
 pub fn compute_descendant_aabb(
     root_entity: Entity,

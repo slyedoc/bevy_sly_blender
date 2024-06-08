@@ -19,9 +19,6 @@ pub use registry::*;
 pub mod animation;
 pub use animation::*;
 
-pub mod copy_components;
-pub use copy_components::*;
-
 use core::fmt;
 use std::path::PathBuf;
 
@@ -30,19 +27,19 @@ use bevy::{prelude::*, render::primitives::Aabb, utils::HashMap};
 mod ronstring_to_reflect_component;
 pub use ronstring_to_reflect_component::*;
 
-const ASSET_ERROR: &str = "Bevy_registry_export requires access to the Bevy asset plugin. \
-    Please add `ExportRegistryPlugin` after `AssetPlugin`, which is commonly added as part of the `DefaultPlugins`";
-
 pub mod prelude {
-    #[cfg(feature = "registry")]
-    pub use crate::registry::*;
     pub use crate::{
         BlenderPlugin,
         GltfFormat,
         GltfBlueprintsSet,
         BluePrintBundle,
         BlueprintName,
-        components::*, materials::*,};
+        components::*,
+        materials::*,
+    };
+
+    #[cfg(feature = "registry")]
+    pub use crate::registry::*;
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
@@ -50,7 +47,7 @@ pub mod prelude {
 pub enum GltfBlueprintsSet {
     Injection,
     Spawn,
-    AfterSpawn,
+    //AfterSpawn,
 }
 
 
@@ -90,6 +87,8 @@ impl Default for BlenderPlugin {
     }
 }
 
+#[derive(Event, Debug, Clone)]
+pub struct BlueprintSpawned(pub Entity);
 
 impl Plugin for BlenderPlugin {
     fn build(&self, app: &mut App) {
@@ -98,7 +97,7 @@ impl Plugin for BlenderPlugin {
         {
             // hack to get the asset path, could be removed?
             let asset_plugins: Vec<&AssetPlugin> = app.get_added_plugins();
-            let asset_plugin = asset_plugins.into_iter().next().expect(ASSET_ERROR);
+            let asset_plugin = asset_plugins.into_iter().next().expect("Asset plugin required. Please add `ExportRegistryPlugin` after `AssetPlugin`");
             let path_str = asset_plugin.file_path.clone();
             let path = PathBuf::from(path_str);
 
@@ -124,6 +123,7 @@ impl Plugin for BlenderPlugin {
             .register_type::<HashMap<u32, Vec<String>>>()
             .register_type::<HashMap<String, HashMap<u32, Vec<String>>>>()
             .add_event::<AnimationMarkerReached>()
+            .add_event::<BlueprintSpawned>()
             .register_type::<BlueprintsList>()
             .register_type::<HashMap<String, Vec<String>>>()
             .insert_resource(BlenderPluginConfig {
@@ -146,7 +146,7 @@ impl Plugin for BlenderPlugin {
                 (
                     GltfBlueprintsSet::Injection,
                     GltfBlueprintsSet::Spawn,
-                    GltfBlueprintsSet::AfterSpawn,
+                    //GltfBlueprintsSet::AfterSpawn,
                 )
                     .chain(),
             )
@@ -161,9 +161,8 @@ impl Plugin for BlenderPlugin {
                     )
                         .chain(),
                     (aabb::compute_scene_aabbs, apply_deferred)
-                        .chain()
-                        .run_if(aabbs_enabled),
-                    // apply_deferred, think this dupicate was an error
+                         .chain()
+                         .run_if(aabbs_enabled.and_then(on_event::<BlueprintSpawned>())),                         
                     (
                         materials::materials_inject,
                         materials::check_for_material_loaded,
@@ -175,12 +174,12 @@ impl Plugin for BlenderPlugin {
                     .chain()
                     .in_set(GltfBlueprintsSet::Spawn),
             )
-            .add_systems(
-                Update,
-                (spawned_blueprint_post_process, apply_deferred)
-                    .chain()
-                    .in_set(GltfBlueprintsSet::AfterSpawn),
-            )
+            // .add_systems(
+            //     Update,
+            //     (spawned_blueprint_post_process, apply_deferred)
+            //         .chain()
+            //         .in_set(GltfBlueprintsSet::AfterSpawn),
+            // )
             .add_systems(
                 Update,
                 (

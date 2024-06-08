@@ -1,12 +1,13 @@
-use std::{
-    any::TypeId, ops::Deref, path::{Path, PathBuf}
-};
+use std::{any::TypeId, path::Path};
 
 use bevy::{
-    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command}, gltf::Gltf, prelude::*, scene::SceneInstance, utils::{dbg, smallvec::SmallVec, HashMap}
+    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command},
+    gltf::Gltf,
+    prelude::*,
+    utils::HashMap,
 };
 
-use crate::{BlenderPluginConfig, BlueprintAnimations};
+use crate::{BlenderPluginConfig, BlueprintSpawned};
 
 /// this is a flag component for our levels/game world
 #[derive(Component)]
@@ -22,20 +23,10 @@ pub struct BlueprintName(pub String);
 #[reflect(Component)]
 pub struct SpawnHere;
 
-#[derive(Component)]
-/// flag component for dynamically spawned scenes
-pub struct Spawned;
-
-
-#[derive(Component, Reflect, Default, Debug)]
-#[reflect(Component)]
-// this allows overriding the default library path for a given entity/blueprint
-pub struct Library(pub PathBuf);
-
-#[derive(Component, Reflect, Default, Debug)]
-#[reflect(Component)]
-/// flag component to force adding newly spawned entity as child of game world
-pub struct AddToGameWorld;
+// #[derive(Component, Reflect, Default, Debug)]
+// #[reflect(Component)]
+// // this allows overriding the default library path for a given entity/blueprint
+// pub struct Library(pub PathBuf);
 
 /// helper component, is used to store the list of sub blueprints to enable automatic loading of dependend blueprints
 #[derive(Component, Reflect, Default, Debug)]
@@ -85,18 +76,18 @@ pub(crate) fn prepare_blueprints(
             Entity,
             &BlueprintName,
             Option<&Parent>,
-            Option<&Library>,
+            //Option<&Library>,
             Option<&Name>,
             Option<&BlueprintsList>,
         ),
-        (Added<BlueprintName>, Added<SpawnHere>, Without<Spawned>),
+        (Added<BlueprintName>, Added<SpawnHere>),
     >,
 
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     blueprints_config: Res<BlenderPluginConfig>,
 ) {
-    for (entity, blupeprint_name, original_parent, library_override, name, blueprints_list) in
+    for (entity, blupeprint_name, original_parent, name, blueprints_list) in
         spawn_placeholders.iter()
     {
         info!(
@@ -109,11 +100,10 @@ pub(crate) fn prepare_blueprints(
             let blueprints_list = blueprints_list.unwrap();
             // println!("blueprints list {:?}", blueprints_list.0.keys());
             let mut asset_infos: Vec<AssetLoadTracker<Gltf>> = vec![];
-            let library_path =
-                library_override.map_or_else(|| &blueprints_config.library_folder, |l| &l.0);
             for (blueprint_name, _) in blueprints_list.0.iter() {
                 let model_file_name = format!("{}.{}", &blueprint_name, &blueprints_config.format);
-                let model_path = Path::new(&library_path).join(Path::new(model_file_name.as_str()));
+                let model_path = Path::new(&blueprints_config.library_folder)
+                    .join(Path::new(model_file_name.as_str()));
 
                 let model_handle: Handle<Gltf> = asset_server.load(model_path.clone());
                 let model_id = model_handle.id();
@@ -184,55 +174,29 @@ pub(crate) fn check_for_loaded(
 }
 
 pub(crate) fn spawn_from_blueprints(
+    mut commands: Commands,
     spawn_placeholders: Query<
+        (Entity, &BlueprintName, Option<&Name>),
         (
-            Entity,
-            &BlueprintName,
-            Option<&Transform>,
-            Option<&Parent>,
-            Option<&Library>,
-            Option<&AddToGameWorld>,
-            Option<&Name>,
-        ),
-        (
-            With<BlueprintAssetsLoaded>,
             Added<BlueprintAssetsLoaded>,
+            With<BlueprintAssetsLoaded>,
             Without<BlueprintAssetsNotLoaded>,
         ),
     >,
-
-    mut commands: Commands,
-    //mut game_world: Query<Entity, With<GameWorldTag>>,
     assets_gltf: Res<Assets<Gltf>>,
     asset_server: Res<AssetServer>,
     blueprints_config: Res<BlenderPluginConfig>,
-
-    children: Query<&Children>,
 ) {
-    for (
-        entity,
-        blupeprint_name,
-        transform,
-        original_parent,
-        library_override,
-        add_to_world,
-        name,
-    ) in spawn_placeholders.iter()
-    {
+    for (entity, blupeprint_name, name) in spawn_placeholders.iter() {
         info!(
-            "attempting to spawn {:?} for entity {:?}, id: {:?}, parent:{:?}",
-            blupeprint_name.0, name, entity, original_parent
+            "attempting to spawn {:?} for entity {:?}, id: {:?}",
+            blupeprint_name.0, name, entity,
         );
 
-        let what = &blupeprint_name.0;
-        let model_file_name = format!("{}.{}", &what, &blueprints_config.format);
-
-        // library path is either defined at the plugin level or overriden by optional Library components
-        let library_path =
-            library_override.map_or_else(|| &blueprints_config.library_folder, |l| &l.0);
-        let model_path = Path::new(&library_path).join(Path::new(model_file_name.as_str()));
-
-        // info!("attempting to spawn {:?}", model_path);
+        let model_path = Path::new(&blueprints_config.library_folder).join(format!(
+            "{}.{}",
+            blupeprint_name.0, &blueprints_config.format
+        ));
         let model_handle: Handle<Gltf> = asset_server.load(model_path.clone()); // FIXME: kinda weird now
         let gltf = assets_gltf.get(&model_handle).unwrap_or_else(|| {
             panic!(
@@ -250,57 +214,44 @@ pub(crate) fn spawn_from_blueprints(
 
         let scene = &gltf.named_scenes[main_scene_name];
 
-        commands.entity(entity).insert((
-            Spawned,            
-            #[cfg(feature = "animation")]
-            BlueprintAnimations {
-                 // these are animations specific to the inside of the blueprint
-                 named_animations: gltf.named_animations.clone(),
-            },
-        ));
+        // simplefied old way
+        // commands.entity(entity).insert(SceneBundle {
+        //     scene: scene.clone(),
+        //     ..Default::default()
+        // });
 
+        // new way
         commands.add(SpawnBlueprint {
             handle: scene.clone(),
             root: entity,
         });
-
-        // if add_to_world.is_some() {
-        //     dbg!("STOP THIS: add to game world");
-        //     let world = game_world
-        //         .get_single_mut()
-        //         .expect("there should be a game world present");
-        //     commands.entity(world).add_child(entity);
-        // }
     }
 }
 
-// This is an attemp to flatten entities, it is based on the scene bundle,
-// but we do everything directy since we can assume everything is loaded,
+// This is an attemp to flatten entities, it is based on the scene bundle
 // coping logic is from bevy_scene::scene::write_to_world_with
+// basiclly we copy from scene world to app world, flatten it by assuming gltf parser inserts entities in order
+// in heirarchy order so root entity is always 0v1, it never has anything useful on it, so we skip it
+// we also assume 0v1 only hase one child, making 1v1 the entity we want as new root node
+const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
+const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
+                                                    //const COMPONENT_EXCLUDE: [TypeId; 1] = [TypeId::of::<Name>()];
+
 pub struct SpawnBlueprint {
     handle: Handle<Scene>,
     root: Entity,
 }
 
-const SCENE_ROOT: Entity = Entity::from_raw(0);
-const SCENE_NEW_ROOT: Entity = Entity::from_raw(1);
-const COMPONENT_EXCLUDE: [TypeId; 2] = [TypeId::of::<Parent>(), TypeId::of::<Children>()];
-
 impl Command for SpawnBlueprint {
     fn apply(self, world: &mut World) {
         let id = self.handle.id();
-        let no_name = Name::new("None");
-        world.resource_scope(|world, mut scenes: Mut<Assets<Scene>>| {
-            // cache the root parent
-            let root_parent = world.entity(self.root).get::<Parent>().unwrap().get();
-            let root_parent_parent = world.entity(root_parent).get::<Parent>().unwrap().get();
 
-            // get the scene
+        world.resource_scope(|world, mut scenes: Mut<Assets<Scene>>| {
+            // cache the parent
+            let parent = world.entity(self.root).get::<Parent>().unwrap().get();
+
             let Some(scene) = scenes.get_mut(id) else {
-                error!(
-                    "Failed to get scene with id {:?}, make sure its loaded first",
-                    id
-                );
+                error!("Failed to get scene with id {:?}", id);
                 return;
             };
 
@@ -340,65 +291,60 @@ impl Command for SpawnBlueprint {
                 reflect_resource.copy(&scene.world, world);
             }
 
-            // let mut query = scene.world.query::<Entity>();
-            // let scene_entities = query.iter(&scene.world).collect::<Vec<_>>();
+            // map of scene to app world entities
+            let mut entity_map = EntityHashMap::default();
+            entity_map.insert(SCENE_NEW_ROOT, self.root);
 
-            // let blueprint_root_name = scene.world.get::<Name>(Entity::from_raw(1)).unwrap();
-            // dbg!(blueprint_root_name, scene_entities.len());
-
-            // Copy entities with components
-            let mut entity_map = EntityHashMap::default();    
-            // Would like to map both:
-            //   -- SCENE_ROOT - root entity created by gltf loader root and its child to same scene
-            // entity_map.insert(SCENE_ROOT, self.root); // this would break map_all_entities
-            //   -- SCENE_NEW_ROOT its only child 
-            entity_map.insert(SCENE_ROOT, self.root);            
-
+            // copy entities
             for archetype in scene.world.archetypes().iter() {
                 for scene_entity in archetype.entities() {
-                    // skip the root entity, it will be g
-                    let skip = scene_entity.id() == SCENE_ROOT;
-     
-                    // lookup or create new entity to copy to
-                    let entity = entity_map
-                        .entry(scene_entity.id())
-                        .or_insert_with(|| world.spawn_empty().id());
-
-                    // copy components
+                    let e = scene_entity.id();
                     for component_id in archetype.components() {
                         let component_info = scene
                             .world
                             .components()
                             .get_info(component_id)
                             .expect("component_ids in archetypes should have ComponentInfo");
+                        let type_id = component_info.type_id().unwrap();
+                        let reflect_component = type_registry
+                            .get(type_id)
+                            .expect("Failed to get reflect component type id:")
+                            .data::<ReflectComponent>()
+                            .expect("Failed to get reflect component");
 
-                        let component_name = component_info.name().to_string();
-                        // if component_name.contains("Ship") {
-                        let entity_name = scene.world.get::<Name>(scene_entity.id()).unwrap_or(&no_name);
-                        warn!("entity {:?} {:?} , scene_entity: {:?}, name: {}", entity, entity_name, scene_entity.id(), component_name);
-
-                        let Some(reflect_component_type_id) =
-                            type_registry.get(component_info.type_id().unwrap())
-                        else {
-                            error!(
-                                "Failed to get reflect component: {}",
-                                component_info.name().to_string()
-                            );
+                        // skip if root entity, nothing useful on it
+                        if e == SCENE_ROOT {
                             continue;
-                        };
-                        let Some(reflect_component) =
-                            reflect_component_type_id.data::<ReflectComponent>()
-                        else {
-                            error!(
-                                "Failed to get reflect component: {}",
-                                reflect_component_type_id
-                                    .type_info()
-                                    .type_path()
-                                    .to_string()
-                            );
-                            continue;
-                        };
+                        }
 
+                        if e == SCENE_NEW_ROOT {
+                            // dont overwrite name with blueprint's name
+                            if type_id == TypeId::of::<Name>() {
+                                continue;
+                            }
+                            // apply the root entity's transform to existing entity
+                            if type_id == TypeId::of::<Transform>() {
+                                let scene_trans = scene.world.get::<Transform>(e).unwrap().clone();
+                                let mut trans = world.get_mut::<Transform>(e).unwrap();
+                                trans.translation += scene_trans.translation;
+                                trans.rotation *= scene_trans.rotation;
+                                trans.scale *= scene_trans.scale;
+                                dbg!(&trans);
+                                //assert!(trans.translation == Vec3::ZERO, "root entity should have no translation");
+                                continue;
+                            }
+                            // overwrite the parent
+                            if type_id == TypeId::of::<Parent>() {
+                               
+                            }
+                        }
+
+                        // get or create app world entity
+                        let entity = entity_map
+                            .entry(scene_entity.id())
+                            .or_insert_with(|| world.spawn_empty().id());
+
+                        // copy the component to the app world entity
                         reflect_component.copy(
                             &scene.world,
                             world,
@@ -410,74 +356,28 @@ impl Command for SpawnBlueprint {
                 }
             }
 
-            // before we could update the map on all entities, but since we are using the root entity from the command
-            // this doesnt work, so only updating children of the root entity, and we update root manually
-
             // Map Entities, this fixes any references to entities in the copy
             for registration in type_registry.iter() {
-                if let Some(map_entities_reflect) = registration.data::<ReflectMapEntities>() {
-                    // cant use map_all_entities, as some parenting is already set
-                    //map_entities_reflect.map_entities(world, &mut entity_map, &non_root_entites);
-                    map_entities_reflect.map_all_entities(world, &mut entity_map);
-                }
+                let Some(map_entities_reflect) = registration.data::<ReflectMapEntities>() else {
+                    continue;
+                };
+                map_entities_reflect.map_all_entities(world, &mut entity_map);
             }
 
-            let root_parent2 = world.entity(self.root).get::<Parent>().unwrap().get();
-            info!("root_parent: {:?}, root_parent2: {:?}, fixing", root_parent, root_parent2);
+            // The post proccessing
+            // Fix Parenting, we cached the correct parent entity at the start
+            info!(
+                "parent: {:?}, current: {:?}, restoring",
+                parent,
+                world.entity(self.root).get::<Parent>().unwrap().get()
+            );
 
-            // Fix Parenting
-            world.entity_mut(self.root)
-                .set_parent(root_parent);
+            world
+                .entity_mut(self.root)
+                .set_parent(parent)
+                .remove::<BlueprintAssetsLoaded>();
 
-
-            // let root_parent_parent2 = world.entity(root_parent).get::<Parent>().unwrap().get();
-            // info!("root_parent_parent: {:?}, root_parent_parent2: {:?}, fixing", root_parent_parent,  root_parent_parent2);
-        
-            //world.entity_mut(root_parent).set_parent(root_parent_parent);
+            world.send_event(BlueprintSpawned(self.root));
         })
-    }
-}
-
-pub(crate) fn spawned_blueprint_post_process(
-    unprocessed_entities: Query<
-        (
-            Entity,
-            Option<&Name>,
-        ),
-        (With<SpawnHere>, With<SceneInstance>, With<Spawned>),
-    >,
-    mut commands: Commands,
-) {
-    for (original, name) in
-        unprocessed_entities.iter()
-    {
-        commands.entity(original).remove::<SpawnHere>();
-        commands.entity(original).remove::<Spawned>();
-        commands.entity(original).remove::<Handle<Scene>>();
-        commands.entity(original).remove::<AssetsToLoad<Gltf>>(); // also clear the sub assets tracker to free up handles, perhaps just freeing up the handles and leave the rest would be better ?
-        commands.entity(original).remove::<BlueprintAssetsLoaded>();
-        info!("post processing blueprint for entity: {:?}", name);
-
-        // savign this code, but not using right now
-        #[cfg(feature = "animation")] 
-        {
-            let mut root_entity = Entity::PLACEHOLDER;
-            if animations.named_animations.keys().len() > 0 {
-                for (added, parent) in added_animation_players.iter() {
-                    if parent.get() == root_entity {
-                        // FIXME: stopgap solution: since we cannot use an AnimationPlayer at the root entity level
-                        // and we cannot update animation clips so that the EntityPaths point to one level deeper,
-                        // BUT we still want to have some marker/control at the root entity level, we add this
-                        commands
-                            .entity(original)
-                            .insert(BlueprintAnimationPlayerLink(added));
-                    }
-                }
-            }
-            commands.entity(root_entity).despawn_recursive();
-        }
-
-
-
     }
 }

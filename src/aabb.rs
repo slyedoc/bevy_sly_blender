@@ -13,7 +13,7 @@ pub fn compute_scene_aabbs(
 ) {
     // compute compound aabb
     for (root_entity, name) in root_entities.iter() {
-        // info!("generating aabb for {:?}", name);
+        info!("generating aabb for {:?}", name);
 
         // only recompute aabb if it has not already been done before
         if blueprints_config.aabb_cache.contains_key(&name.to_string()) {

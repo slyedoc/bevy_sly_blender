@@ -1,7 +1,7 @@
 # Blender plugin for bevy
 
 > This is completely based off [Blender_bevy_components_workflow](https://github.com/kaosat-dev/Blender_bevy_components_workflow/)
-> A ton of work has gone into it really has working code that does a ton.  Nearly every bit of functionality comes from there.  I was having trouble understanding it and started refactoring it so I understood it better and > I have gotten carried away. I haven't done much with blender and would rather be in rust then python.
+> A ton of work has gone into it really has working code that does a ton.  Nearly every bit of functionality comes from there.  I was having trouble understanding it and started refactoring and I have gotten carried away. I haven't done much with blender and would rather be in rust then python.
 
 Currently focused on an ideal happy path rather supporting every use case.
 
@@ -13,8 +13,11 @@ Also using main branch for gltf export plugin.
 
 - [ ] Docs
 - [ ] Flatten Entity Hierarchy - hate having so many, Level>Scene>Instance(Blueprint)>Collection Root>children feels so un ECS,
- makes normal querying a pain.  
- - Have tried ever way I can think of using SceneBundle system, but it forces create new entity, working on by passing it entirely (see [spawn_from_bluerpint.rs](./src/spawn_from_blueprints.rs)).
+ and systems far to complicated when it should be simple queries.
+ - Have tried ever way I can think of using SceneBundle system, but it forces nesting that just gets in the way, working on by passing it entirely (see [spawn_from_bluerpint.rs](./src/spawn_from_blueprints.rs)).
+ - Currently using custom copy from scene world to app world, and removes need for SceneBundle and all post processing that was need to try and flatten it before.
+
+- [ ] Simplify UI
 - [X] Collaspse blender plugins
   - [X] Unify settings
   - [X] flatten structure  

@@ -8,6 +8,7 @@ edition = "2021"
 default = ["inspector", "registry"]
 registry = [] # optional feature to enable the registry
 inspector = [ "bevy-inspector-egui" ]
+animation = [] # optional feature to enable the animation system
 
 [dependencies]
 bevy = { version = "0.13" }
@@ -18,28 +19,3 @@ bevy-inspector-egui = { version = "0.24", optional = true }
 
 [dev-dependencies]
 bevy_asset_loader = { version = "0.20" }
-
-[patch.crates-io]
-# since all the subcrates are patched, we need to specify them all, havent found better way to do this
-bevy = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub" }
-bevy_app = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_asset = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_core = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_derive = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_core_pipeline = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_ecs = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_encase_derive = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_hierarchy = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_log = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_math = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_mikktspace = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_pbr = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_reflect = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_render_macros = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_render = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_time = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_transform = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_window = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_utils = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_tasks = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }
-bevy_macro_utils = { git = "https://github.com/slyedoc/bevy.git", branch = "hierarchy-pub"  }

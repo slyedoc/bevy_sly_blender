@@ -1,3 +1,5 @@
+#![feature(const_type_id)] // for type_id exclude list
+
 pub mod aabb;
 pub mod components;
 pub mod lighting;
@@ -8,8 +10,6 @@ pub use lighting::*;
 pub mod spawn_from_blueprints;
 pub use self::spawn_from_blueprints::*;
 
-pub mod spawn_post_process;
-pub(crate) use spawn_post_process::*;
 
 #[cfg(feature = "registry")]
 pub mod registry;

@@ -5,7 +5,7 @@
 
 Currently focused on an ideal happy path rather supporting every use case.
 
-Using blender 4.2 main branch, there is a bug causing crashes during gltf export that is fixed on main.
+Using [Blender 4.2 main branch](https://github.com/blender/blender), on 4.1  there is a bug causing crashes during gltf export that is fixed on main branch. [Build notes here](https://developer.blender.org/docs/handbook/building_blender/)
 
 Also using main branch for gltf export plugin.
 

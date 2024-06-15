@@ -18,11 +18,11 @@ pub fn plugin(app: &mut App) {
 
 pub fn add_components_from_gltf_extras(world: &mut World) {
     let mut extras =
-        world.query_filtered::<(Entity, &Name, &GltfExtras, &Parent), Changed<GltfExtras>>();
+        world.query_filtered::<(Entity, &Name, &GltfExtras), Changed<GltfExtras>>();
     let mut entity_components: HashMap<Entity, Vec<(Box<dyn Reflect>, TypeRegistration)>> =
         HashMap::new();
 
-    for (entity, name, extra, parent) in extras.iter(world) {
+    for (entity, name, extra) in extras.iter(world) {
         info!("proccess extra: {:?} {:?}", entity, name);
 
         let type_registry: &AppTypeRegistry = world.resource();
@@ -30,14 +30,17 @@ pub fn add_components_from_gltf_extras(world: &mut World) {
         let reflect_components = ronstring_to_reflect_component(&extra.value, &type_registry);
 
         // we assign the components specified /xxx_components objects to their parent node
-        let mut target_entity = entity;
+        let target_entity = entity;
+        // TODO: I am not using this featurer, not sure anything is
         // if the node contains "components" or ends with "_pa" (ie add to parent), the components will not be added to the entity itself but to its parent
         // this is mostly used for Blender collections
-        if name.as_str().contains("components") || name.as_str().ends_with("_pa") {
-            debug!("adding components to parent");
-            target_entity = parent.get();
-        }
-        debug!("adding to {:?}", target_entity);
+        // if name.as_str().contains("components") || name.as_str().ends_with("_pa") {
+        //     // panic!("components should not be added to the entity itself, but to its parent");
+        //     if let Some(parent) = parent_maybe {
+        //         info!("adding components to parent");
+        //         target_entity = parent.get();
+        //     }
+        // }
 
         // if there where already components set to be added to this entity (for example when entity_data was refering to a parent), update the vec of entity_components accordingly
         // this allows for example blender collection to provide basic ecs data & the instances to override/ define their own values
@@ -64,10 +67,10 @@ pub fn add_components_from_gltf_extras(world: &mut World) {
         let type_registry = type_registry.read();
 
         if !components.is_empty() {
-            debug!("--entity {:?}, components {}", entity, components.len());
+            info!("--entity {:?}, components {}", entity, components.len());
         }
         for (component, type_registration) in components {
-            debug!(
+            info!(
                 "------adding {} {:?}",
                 component.get_represented_type_info().unwrap().type_path(),
                 component

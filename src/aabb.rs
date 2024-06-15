@@ -12,24 +12,24 @@ pub fn compute_scene_aabbs(
     mut commands: Commands,
 ) {
     for e in spawn_events.read() {
-        let (root_entity, name) = root_entities.get(e.0).unwrap();
-        info!("generate aabb for {:?} {:?}", name, e);
+        if let Ok((root_entity, name)) = root_entities.get(e.0) {
+            info!("generate aabb for {:?} {:?}", name, e);
 
-        // only recompute aabb if it has not already been done before
-        if blueprints_config.aabb_cache.contains_key(&name.to_string()) {
-            let aabb = blueprints_config
-                .aabb_cache
-                .get(&name.to_string())
-                .expect("we should have the aabb available");
-            commands.entity(root_entity).insert(*aabb);
-        } else {
-            let aabb = compute_descendant_aabb(root_entity, &children, &existing_aabbs);
-            commands.entity(root_entity).insert(aabb);
-            blueprints_config.aabb_cache.insert(name.to_string(), aabb);
+            // only recompute aabb if it has not already been done before
+            if blueprints_config.aabb_cache.contains_key(&name.to_string()) {
+                let aabb = blueprints_config
+                    .aabb_cache
+                    .get(&name.to_string())
+                    .expect("we should have the aabb available");
+                commands.entity(root_entity).insert(*aabb);
+            } else {
+                let aabb = compute_descendant_aabb(root_entity, &children, &existing_aabbs);
+                commands.entity(root_entity).insert(aabb);
+                blueprints_config.aabb_cache.insert(name.to_string(), aabb);
+            }
         }
     }
 }
-
 
 pub fn compute_descendant_aabb(
     root_entity: Entity,

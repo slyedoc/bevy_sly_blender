@@ -6,7 +6,7 @@ use bevy::{
     },
     reflect::{TypeInfo, TypeRegistration, VariantInfo},
 };
-use std::{fs::{self, File}, path::{Path, PathBuf}};
+use std::{fs::File, path::{Path, PathBuf}};
 use serde_json::{json, Map, Value};
 
 use crate::BlenderPluginConfig;
@@ -22,13 +22,13 @@ pub fn export_types(world: &mut World) {
 
     let asset_root = world.resource::<AssetRoot>();
     let registry_save_path = Path::join(&asset_root.0, &config.save_path);
-    dbg!(&registry_save_path);
-    match fs::canonicalize(&registry_save_path) {
-        Ok(full_path) => info!("Registry path is: {}", full_path.display()),
-        Err(e) => println!("Error resolving Registry path: {}", e),
-    }
+    //dbg!(&registry_save_path);
+    // match fs::canonicalize(&registry_save_path) {
+    //     Ok(full_path) => info!("Registry path is: {}", full_path.display()),
+    //     Err(e) => println!("Error resolving Registry path: {}", e),
+    // }
 
-    let writer = File::create(registry_save_path).expect("should have created schema file");
+    let writer = File::create(&registry_save_path).expect("should have created schema file");
 
     let components_to_filter_out = &config.component_filter.clone();
     let resources_to_filter_out = &config.resource_filter.clone();
@@ -55,7 +55,7 @@ pub fn export_types(world: &mut World) {
     )
     .expect("valid json");
 
-    info!("Done exporting registry schema")
+    info!("Done exporting registry schema: {:?}", registry_save_path)
 }
 
 pub fn export_type(reg: &TypeRegistration) -> (String, Value) {

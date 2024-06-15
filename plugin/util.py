@@ -13,7 +13,6 @@ SETTING_NAME = ".bevy_settings"
 
 EXPORT_MARKED_ASSETS = True
 #EXPORT_BLUEPRINTS = Only True - Not longer an option
-EXPORT_MATERIALS_LIBRARY = True 
 EXPORT_STATIC_DYNAMIC = False # dont use this yet
 EXPORT_SCENE_SETTINGS = True
 CHANGE_DETECTION = True

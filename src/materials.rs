@@ -1,79 +1,38 @@
-use std::path::Path;
-
 use bevy::{gltf::Gltf, prelude::*, reflect::Reflect};
 
-use crate::{BlenderAssets, BlenderPluginConfig};
+use crate::BlenderAssets;
 
-#[derive(Component, Reflect, Default, Debug)]
+// Requires [glTF-Blender-IO](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch so MaterialName is added
+
+#[derive(Component, Reflect, Default, Debug, Deref, DerefMut)]
 #[reflect(Component)]
 /// struct containing the name & source of the material to apply
-pub struct MaterialInfo {
-    pub name: String,
-    pub path: String,
-}
+pub struct MaterialName(pub String);
 
 /// system that injects / replaces materials from material library
 pub(crate) fn materials_inject(
-    mut blueprints_config: ResMut<BlenderPluginConfig>,
-    material_infos: Query<(&MaterialInfo, &Children), (Added<MaterialInfo>,)>,
-    with_materials_and_meshes: Query<
-        (),
-        (
-            With<Parent>,
-            With<Handle<StandardMaterial>>,
-            With<Handle<Mesh>>,
-        ),
-    >,
-    assets_gltf: Res<Assets<Gltf>>,
-    asset_server: Res<AssetServer>,
-    blender_assets: Res<BlenderAssets>,
     mut commands: Commands,
+    material_infos: Query<(Entity, &MaterialName), (Added<MaterialName>,)>,
+    assets_gltf: Res<Assets<Gltf>>,
+    blender_assets: Res<BlenderAssets>,
 ) {
-    for (material_info, children) in material_infos.iter() {
-        info!("material_info: {:?}", material_info);
-        let gltf = blender_assets.materials.get(&material_info.path).unwrap();
-        let material_full_path = format!("{}#{}" , &material_info.path, &material_info.name); 
+    for (e, material_name) in material_infos.iter() {
+        // get first material gltf
+        let gltf = blender_assets
+            .materials
+            .values()
+            .next()
+            .expect("only expect one material library right now");
 
-        let mut material_found: Option<&Handle<StandardMaterial>> = None;
+        let mat_gltf = assets_gltf
+            .get(gltf.id())
+            .expect("gltf should have been loaded");
 
-        if blueprints_config
-            .material_library_cache
-            .contains_key(&material_full_path)
-        {
-            debug!("material is cached, retrieving");
-            let material = blueprints_config
-                .material_library_cache
-                .get(&material_full_path)
-                .expect("we should have the material available");
-            material_found = Some(material);
-        } else {            
-            let mat_gltf = assets_gltf
-                .get(gltf.id())
-                .expect("material should have been preloaded");
-            if mat_gltf.named_materials.contains_key(&material_info.name) {
-                let material = mat_gltf
-                    .named_materials
-                    .get(&material_info.name)
-                    .expect("this material should have been loaded");
-                blueprints_config
-                    .material_library_cache
-                    .insert(material_full_path, material.clone());
-                material_found = Some(material);
-            }
-        }
+        let mat = mat_gltf
+            .named_materials
+            .get(&material_name.0)
+            .expect("material should have been found");
 
-        if let Some(material) = material_found {
-            for child in children.iter() {
-                if with_materials_and_meshes.contains(*child) {
-                    info!(
-                        "injecting material {}, path: {:?}",
-                        &material_info.name,
-                        &material_info.path
-                    );
-
-                    commands.entity(*child).insert(material.clone());
-                }
-            }
-        }
+        commands.entity(e).insert(mat.clone());
     }
 }

@@ -7,16 +7,14 @@ Currently focused on an ideal happy path rather supporting every use case.
 
 Using [Blender 4.2 main branch](https://github.com/blender/blender), on 4.1  there is a bug causing crashes during gltf export that is fixed on main branch. [Build notes here](https://developer.blender.org/docs/handbook/building_blender/)
 
-Also using main branch for gltf export plugin.
+Also using main branch for [glTF-Blender-IO](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) based on lasted version to fix material info. Only few lines changed.
 
 ## Goals
 
 - [ ] Docs
-- [ ] Flatten Entity Hierarchy - hate having so many, Level>Scene>Instance(Blueprint)>Collection Root>children feels so un ECS,
+- [x] Flatten Entity Hierarchy - hate having so many, Level>Scene>Instance(Blueprint)>Collection Root>children feels so un ECS,
  and systems far to complicated when it should be simple queries.
- - Have tried ever way I can think of using SceneBundle system, but it forces nesting that just gets in the way, working on by passing it entirely (see [spawn_from_bluerpint.rs](./src/spawn_from_blueprints.rs)).
- - Currently using custom copy from scene world to app world, and removes need for SceneBundle and all post processing that was need to try and flatten it before.
-
+  - Have tried ever way I can think of using bevy_scenes, but it forces nesting that just gets in the way, have bypassed it completely now, see [bluerpints.rs](./src/blueprints.rs) and [levels.rs](./src/levels.rs).
 - [ ] Simplify UI
 - [X] Collaspse blender plugins
   - [X] Unify settings
@@ -28,18 +26,11 @@ Also using main branch for gltf export plugin.
 - [x] Simplify paths
 - [x] Blueprints always on
 - [X] Material library always on
+- [X] Fix material info
+- There is no way to know how many meshes io_scene_gltf2 would generate, so creating material info was not really possible.  A proper fix required a patch to [glTF-Blender-IO - material-info](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch that adds a material name as mesh extra, only only support one material liberary scene.
+- [ ] Reload in bevy on file changes
 - [ ] Add animations back
-- [-] Typed data
-  - [-] Typed data python side
-- [ ] Collapse blender data
-  
 - [ ] Add tests back
-- [ ] Levels
-  - [ ] Rename main scenes
-  - [ ] removing the nesting structure for levels, and instead tag items with a level component
-- [ ] Blueprints
-  - Removed BlueprintsLists and blueprint nesting, for now, will simplify more and revisit that
-- [ ] GLTF settings capture by watching all operations
 
 ## Noteable files
 

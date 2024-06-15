@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProperty, PointerProperty, EnumProperty, FloatProperty,FloatVectorProperty )
 
 from .helpers.custom_scene_components import ambient_color_to_component, scene_ao_to_component, scene_bloom_to_component, scene_shadows_to_component
-from .helpers.collections import set_active_collection, traverse_tree
+from .helpers.collections import recurLayerCollection, traverse_tree
 from .helpers.dynamic import is_object_dynamic, is_object_static
 from .helpers.materials import clear_materials_scene, generate_materials_scene_content
 from .helpers.object_makers import make_empty
@@ -239,11 +239,7 @@ class BevySettings(bpy.types.PropertyGroup):
     missing_types_list: CollectionProperty(name="missing types list", type=MissingBevyType)# type: ignore
     missing_types_list_index: IntProperty(name = "Index for missing types list", default = 0)# type: ignore
 
-    #type_infos = {}
-    #type_infos_missing = []
-    #component_propertyGroups = {}
-    #custom_types_to_add = {}
-    #invalid_components = []
+
     propGroupIdCounter: IntProperty(
         name="propGroupIdCounter",
         description="",
@@ -251,7 +247,7 @@ class BevySettings(bpy.types.PropertyGroup):
         max=1000000000,
         default=0
     ) # type: ignore
-    #long_names_to_propgroup_names = {}
+
 
     def __init__(self):
         self.type_data = RegistryData()
@@ -497,15 +493,14 @@ class BevySettings(bpy.types.PropertyGroup):
     def export_level_scene(self, scene): 
 
         gltf_output_path = os.path.join(self.assets_path, LEVELS_PATH, scene.name)
-        print("exporting scene", scene.name,"to", gltf_output_path + GLTF_EXTENSION)    
+        print("exporting level", scene.name,"to", gltf_output_path + GLTF_EXTENSION)    
 
         blueprint_instance_names_for_scene = self.data.blueprint_instances_per_main_scene.get(scene.name, None)
         blueprint_assets_list = []
         if blueprint_instance_names_for_scene:
             for blueprint_name in blueprint_instance_names_for_scene:
                 blueprint = self.data.blueprints_per_name.get(blueprint_name, None)
-                if blueprint is not None: 
-                    print("BLUEPRINT", blueprint)
+                if blueprint is not None:                     
                     blueprint_exported_path = None
                     if blueprint.local:
                         blueprint_exported_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
@@ -630,13 +625,13 @@ class BevySettings(bpy.types.PropertyGroup):
             active_collection =  bpy.context.view_layer.active_layer_collection
 
             for blueprint in blueprints:
-                print("exporting collection", blueprint.name)
+                print("exporting blueprint", blueprint.name)
                 gltf_output_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)
                 collection = bpy.data.collections[blueprint.name]
                 # do the actual export
                 self.generate_and_export(
                     settings={
-                        'export_materials': 'PLACEHOLDER', # we are using material library, so we dont need to export materials                                                        
+                       'export_materials': 'PLACEHOLDER', # we are using material library                                                        
                     },
                     gltf_output_path=gltf_output_path,
                     temp_scene_name=TEMPSCENE_PREFIX+collection.name,                                        
@@ -978,7 +973,7 @@ class BevySettings(bpy.types.PropertyGroup):
         return blueprints_to_export
 
     # set MaterialInfo for export, and returns list of used materials
-    def set_all_materials(self, library_scenes): 
+    def get_all_materials(self, library_scenes): 
         used_material_names = []
         
         for scene in library_scenes:
@@ -986,40 +981,11 @@ class BevySettings(bpy.types.PropertyGroup):
             for cur_collection in traverse_tree(root_collection):
                 if cur_collection.name in self.data.blueprint_names:
                     for object in cur_collection.all_objects:
-                        used_material_names = used_material_names + self.set_materials(object)
+                        for m in object.material_slots:            
+                            used_material_names.append(m.material.name)            
 
         used_material_names = list(set(used_material_names))
         return used_material_names
-
-    # get materials per object, and injects the materialInfo component
-    def set_materials(self, object):
-        material_slots = object.material_slots
-        used_materials_names = []
-
-        current_project_name = Path(bpy.context.blend_data.filepath).stem     
-        materials_exported_path = os.path.join(MATERIALS_PATH, f"{current_project_name}_materials{GLTF_EXTENSION}")
-        
-        for m in material_slots:            
-            used_materials_names.append(m.material.name)            
-
-        count = len(used_materials_names)
-        if count > 0:    
-            object['MaterialInfo'] = f'(name: "{used_materials_names[0]}", path: "{materials_exported_path}")'
-        
-        # TODO, add multiple materials
-        # Been looking at how gltf generates mesh primaitives during the export proceess since the meshes arent known till then,
-        # I havent been able to get the information out
-        # tried #export_attributes=True,
-            #export_shared_accessors=True,
-        
-        # When though the code that generates the materials,
-        # Maybe be able to fork of the gltf exporter to add the gltf extra information
-        
-        if count > 1:
-            for i in range(1, count):
-                print(f'********* missing "{used_materials_names[i]}"')
-        
-        return used_materials_names
 
 
     # export the scenes, blueprints, materials etc
@@ -1073,7 +1039,7 @@ class BevySettings(bpy.types.PropertyGroup):
             # Step 3: Export materials to its own glb so they can be shared            
             # since materials export adds components we need to call this before blueprints are exported        
             current_project_name = Path(bpy.context.blend_data.filepath).stem
-            used_material_names = self.set_all_materials(library_scenes)            
+            used_material_names = self.get_all_materials(library_scenes)            
 
             self.generate_and_export(
                 settings={},
@@ -1095,10 +1061,10 @@ class BevySettings(bpy.types.PropertyGroup):
 
             print("-------------------------------")
             print("BLUEPRINTS:    local/internal:", [blueprint.name for blueprint in self.data.internal_blueprints])
-            print("BLUEPRINTS:          external:", [blueprint.name for blueprint in self.data.external_blueprints])
-            print("BLUEPRINTS:         per_scene:", self.data.blueprints_per_scenes)
-            print("-------------------------------")
-            print("BLUEPRINTS:         to export:", [blueprint.name for blueprint in blueprints_to_export])
+            #print("BLUEPRINTS:          external:", [blueprint.name for blueprint in self.data.external_blueprints])
+            #print("BLUEPRINTS:         per_scene:", self.data.blueprints_per_scenes)
+            #print("-------------------------------")
+            #print("BLUEPRINTS:         to export:", [blueprint.name for blueprint in blueprints_to_export])
             print("-------------------------------")
             print("LEVELS:             to export:", levels_to_export)
             print("-------------------------------")
@@ -1109,14 +1075,13 @@ class BevySettings(bpy.types.PropertyGroup):
 
             # first export levels
             if len(levels_to_export) > 0:
-                print("export MAIN scenes")
+                #print("export MAIN scenes")
                 for scene_name in (levels_to_export):                
                     self.export_level_scene(bpy.data.scenes[scene_name])
 
             # now deal with blueprints/collections
             do_export_library_scene = not CHANGE_DETECTION or changed_export_parameters or len(blueprints_to_export) > 0
-            if do_export_library_scene:
-                print("export LIBRARY")
+            if do_export_library_scene:                
                 self.export_blueprints(blueprints_to_export)
 
             # reset current scene from backup
@@ -1135,9 +1100,9 @@ class BevySettings(bpy.types.PropertyGroup):
                             if 'MaterialInfo' in dict(object): # FIXME: hasattr does not work ????
                                 del object["MaterialInfo"]
 
-            else:
-                for scene_name in level_scene_names:
-                    self.export_level_scene(bpy.data.scenes[scene_name])
+            # else:
+            #     for scene_name in level_scene_names:
+            #         self.export_level_scene(bpy.data.scenes[scene_name])
 
         except Exception as error:
             print(traceback.format_exc())
@@ -1161,7 +1126,10 @@ class BevySettings(bpy.types.PropertyGroup):
     def generate_and_export(self, settings: Dict[str, Any], gltf_output_path, temp_scene_name="__temp_scene", tempScene_filler=None, tempScene_cleaner=None):         
         # this are our default settings, can be overriden by settings
         #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
-        export_settings = dict(            
+        export_settings = dict(        
+            # these require material-info branch version of the io_scene_gltf
+            log_info=False,    # limit the output to the console
+
             # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
             check_existing=False,
             export_yup=True,
@@ -1238,7 +1206,10 @@ class BevySettings(bpy.types.PropertyGroup):
             if scene_mismatch:
                 raise Exception("Context scene mismatch, aborting", bpy.context.scene.name, bpy.context.window.scene.name)
             
-            set_active_collection(bpy.context.scene, temp_root_collection.name)
+            # set active colleciton
+            layer_collection = bpy.data.scenes[bpy.context.scene.name].view_layers['ViewLayer'].layer_collection
+            bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, temp_root_collection.name)
+            
             # generate contents of temporary scene
             scene_filler_data = tempScene_filler(temp_root_collection)
             # export the temporary scene

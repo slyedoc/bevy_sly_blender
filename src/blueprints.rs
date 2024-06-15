@@ -187,8 +187,9 @@ impl Command for SpawnBlueprint {
                                 assert!(scene_trans.rotation == Quat::IDENTITY);
                             }
                             if type_id == TypeId::of::<Children>() {
-                                let children = scene.world.get::<Children>(e).unwrap();                                
-                                //assert!(children.iter().len() == 1);
+                                let children = scene.world.get::<Children>(e).unwrap();
+                                // all my blueprints have only one child, this may change                          
+                                assert!(children.iter().len() == 1);
                             }
                             // dont copy anything from root entity
                             continue;

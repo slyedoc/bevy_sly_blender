@@ -95,8 +95,6 @@ pub struct BlenderPluginConfig {
     pub aabbs: bool,
     pub aabb_cache: HashMap<String, Aabb>, // cache for aabbs
 
-    pub material_library_cache: HashMap<String, Handle<StandardMaterial>>,
-
     // registry config
     pub(crate) save_path: PathBuf,
     #[allow(dead_code)]
@@ -132,7 +130,7 @@ impl Plugin for BlenderPlugin {
         ))
         // rest
         .register_type::<BlueprintName>()
-        .register_type::<materials::MaterialInfo>()
+        .register_type::<materials::MaterialName>()
         .register_type::<BlueprintAnimations>()
         .register_type::<SceneAnimations>()
         .register_type::<AnimationInfo>()
@@ -151,8 +149,6 @@ impl Plugin for BlenderPlugin {
             materials_library: self.material_folder.clone(),
             aabbs: self.aabbs,
             aabb_cache: HashMap::new(),
-
-            material_library_cache: HashMap::new(),
 
             save_path: self.save_path.clone(),
             component_filter: self.component_filter.clone(),
@@ -184,7 +180,7 @@ impl Plugin for BlenderPlugin {
                 (aabb::compute_scene_aabbs, apply_deferred)
                     .chain()
                     .run_if(aabbs_enabled.and_then(on_event::<BlueprintSpawned>())),
-                // materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
+                materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
             )
                 .chain()
                 .in_set(GltfBlueprintsSet::Spawn),

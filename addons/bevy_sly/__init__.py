@@ -1,9 +1,9 @@
 bl_info = {
-    "name": "bevy_sly_blender",
+    "name": "Bevy Sly",
+    "description": "Tooling for Bevy and Blender integration",
     "author": "slyedoc",
     "version": (0, 1, 0),
-    "blender": (4, 1, 0),
-    "description": "simple tooling for the Bevy",
+    "blender": (4, 2, 0),
     "warning": "",
     "wiki_url": "https://github.com/slyedoc/bevy_sly_blender",
     "tracker_url": "https://github.com/slyedoc/bevy_sly_blender/issues/new",

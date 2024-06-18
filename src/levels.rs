@@ -198,10 +198,10 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
                             // if type_id == TypeId::of::<GlobalTransform>() {
                             //     continue;
                             // }
-                            if type_id == TypeId::of::<InheritedVisibility>() {
-                                // TODO: do i need to add visibility to new roots?
-                                continue;
-                            }
+                            // if type_id == TypeId::of::<InheritedVisibility>() {
+                            //     // TODO: do i need to add visibility to new roots?
+                            //     continue;
+                            // }
                         }
 
                         // get or create app world entity

@@ -4,7 +4,7 @@ use bevy_sly_blender::prelude::*;
 
 // TODO: this works with art/basic.blend, but you have to run this first to generate the registry, which works but errors due to missing assets.
 // then save that art/basic.blend then run this again
-// what would be ideal 
+// what would be ideal
 
 // App state to manage loading
 #[derive(Default, States, Debug, Hash, PartialEq, Eq, Clone)]
@@ -12,13 +12,6 @@ pub enum AppState {
     #[default]
     Loading, // Load all asets
     Playing, // Primary State, most systems run while in this state
-}
-
-// Assets we want loaded
-#[derive(AssetCollection, Resource, Debug, Reflect)]
-pub struct LevelAssets {
-    #[asset(path = "levels/Basic.glb")]
-    pub basic: Handle<Gltf>,
 }
 
 fn main() {
@@ -35,7 +28,8 @@ fn main() {
         .add_loading_state(
             LoadingState::new(AppState::Loading)
                 .continue_to_state(AppState::Playing)
-                .load_collection::<LevelAssets>(),
+                // load all blueprints, levels, and materials
+                .load_collection::<BlenderAssets>(),
         )
         .add_systems(Startup, setup)
         .add_systems(OnEnter(AppState::Playing), (cleanup, setup_playing).chain())
@@ -43,7 +37,7 @@ fn main() {
 }
 
 // Cleanup the loading screen
-#[derive(Component)]
+#[derive(Component, Default)]
 struct CleanupMarker;
 
 fn cleanup(mut commands: Commands, query: Query<Entity, With<CleanupMarker>>) {
@@ -54,9 +48,8 @@ fn cleanup(mut commands: Commands, query: Query<Entity, With<CleanupMarker>>) {
 
 // Setup the loading screen
 fn setup(mut commands: Commands) {
-
     commands.spawn((
-        Camera2dBundle::default(), 
+        Camera2dBundle::default(),
         Name::new("MainCamera"),
         CleanupMarker,
     ));
@@ -81,16 +74,15 @@ fn setup(mut commands: Commands) {
 }
 
 // Setup the playing screen
-fn setup_playing(mut commands: Commands, models: Res<Assets<Gltf>>, levels: Res<LevelAssets>) {
-    commands.spawn((
-        SceneBundle {
-            scene: models
-                .get(levels.basic.id())
-                .expect("level should have been loaded")
-                .scenes[0]
-                .clone(),
-            ..default()
-        },
-        Name::new("basic"),
-    ));
+fn setup_playing(mut commands: Commands, blender_assets: Res<BlenderAssets>) {
+    commands.add(SpawnLevel::<CleanupMarker> {
+        handle: blender_assets
+            .levels
+            .values()
+            .next()
+            .expect("no levels loaded")
+            .clone(),
+        root: None,
+        ..default()
+    });
 }

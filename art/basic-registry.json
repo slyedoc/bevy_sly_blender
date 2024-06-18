@@ -50,15 +50,15 @@
       "type": "array",
       "typeInfo": "List"
     },
-    "alloc::vec::Vec<bevy_sly_blender::blueprints::animation::AnimationInfo>": {
+    "alloc::vec::Vec<bevy_sly_blender::animation::AnimationInfo>": {
       "isComponent": false,
       "isResource": false,
       "items": {
         "type": {
-          "$ref": "#/$defs/bevy_sly_blender::blueprints::animation::AnimationInfo"
+          "$ref": "#/$defs/bevy_sly_blender::animation::AnimationInfo"
         }
       },
-      "long_name": "alloc::vec::Vec<bevy_sly_blender::blueprints::animation::AnimationInfo>",
+      "long_name": "alloc::vec::Vec<bevy_sly_blender::animation::AnimationInfo>",
       "short_name": "Vec<AnimationInfo>",
       "type": "array",
       "typeInfo": "List"
@@ -7214,11 +7214,11 @@
       "type": "array",
       "typeInfo": "TupleStruct"
     },
-    "bevy_sly_blender::blueprints::animation::AnimationInfo": {
+    "bevy_sly_blender::animation::AnimationInfo": {
       "additionalProperties": false,
       "isComponent": false,
       "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::animation::AnimationInfo",
+      "long_name": "bevy_sly_blender::animation::AnimationInfo",
       "properties": {
         "frame_end": {
           "type": {
@@ -7263,15 +7263,15 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::blueprints::animation::AnimationInfos": {
+    "bevy_sly_blender::animation::AnimationInfos": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::animation::AnimationInfos",
+      "long_name": "bevy_sly_blender::animation::AnimationInfos",
       "properties": {
         "animations": {
           "type": {
-            "$ref": "#/$defs/alloc::vec::Vec<bevy_sly_blender::blueprints::animation::AnimationInfo>"
+            "$ref": "#/$defs/alloc::vec::Vec<bevy_sly_blender::animation::AnimationInfo>"
           }
         }
       },
@@ -7282,11 +7282,11 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::blueprints::animation::AnimationMarkers": {
+    "bevy_sly_blender::animation::AnimationMarkers": {
       "isComponent": true,
       "isResource": false,
       "items": false,
-      "long_name": "bevy_sly_blender::blueprints::animation::AnimationMarkers",
+      "long_name": "bevy_sly_blender::animation::AnimationMarkers",
       "prefixItems": [
         {
           "type": {
@@ -7298,11 +7298,11 @@
       "type": "array",
       "typeInfo": "TupleStruct"
     },
-    "bevy_sly_blender::blueprints::animation::BlueprintAnimations": {
+    "bevy_sly_blender::animation::BlueprintAnimations": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::animation::BlueprintAnimations",
+      "long_name": "bevy_sly_blender::animation::BlueprintAnimations",
       "properties": {
         "named_animations": {
           "type": {
@@ -7317,11 +7317,11 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::blueprints::animation::SceneAnimations": {
+    "bevy_sly_blender::animation::SceneAnimations": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::animation::SceneAnimations",
+      "long_name": "bevy_sly_blender::animation::SceneAnimations",
       "properties": {
         "named_animations": {
           "type": {
@@ -7336,36 +7336,11 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::blueprints::materials::MaterialInfo": {
-      "additionalProperties": false,
-      "isComponent": true,
-      "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::materials::MaterialInfo",
-      "properties": {
-        "name": {
-          "type": {
-            "$ref": "#/$defs/alloc::string::String"
-          }
-        },
-        "source": {
-          "type": {
-            "$ref": "#/$defs/alloc::string::String"
-          }
-        }
-      },
-      "required": [
-        "name",
-        "source"
-      ],
-      "short_name": "MaterialInfo",
-      "type": "object",
-      "typeInfo": "Struct"
-    },
-    "bevy_sly_blender::blueprints::spawn_from_blueprints::BlueprintName": {
+    "bevy_sly_blender::blueprints::BlueprintName": {
       "isComponent": true,
       "isResource": false,
       "items": false,
-      "long_name": "bevy_sly_blender::blueprints::spawn_from_blueprints::BlueprintName",
+      "long_name": "bevy_sly_blender::blueprints::BlueprintName",
       "prefixItems": [
         {
           "type": {
@@ -7377,49 +7352,11 @@
       "type": "array",
       "typeInfo": "TupleStruct"
     },
-    "bevy_sly_blender::blueprints::spawn_from_blueprints::BlueprintsList": {
-      "isComponent": true,
-      "isResource": false,
-      "items": false,
-      "long_name": "bevy_sly_blender::blueprints::spawn_from_blueprints::BlueprintsList",
-      "prefixItems": [
-        {
-          "type": {
-            "$ref": "#/$defs/bevy_utils::hashbrown::HashMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>, bevy_utils::hashbrown::hash_map::DefaultHashBuilder>"
-          }
-        }
-      ],
-      "short_name": "BlueprintsList",
-      "type": "array",
-      "typeInfo": "TupleStruct"
-    },
-    "bevy_sly_blender::blueprints::spawn_from_blueprints::SpawnHere": {
+    "bevy_sly_blender::lighting::BlenderBackgroundShader": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::blueprints::spawn_from_blueprints::SpawnHere",
-      "properties": {},
-      "required": [],
-      "short_name": "SpawnHere",
-      "type": "object",
-      "typeInfo": "Struct"
-    },
-    "bevy_sly_blender::components::GltfProcessed": {
-      "additionalProperties": false,
-      "isComponent": true,
-      "isResource": false,
-      "long_name": "bevy_sly_blender::components::GltfProcessed",
-      "properties": {},
-      "required": [],
-      "short_name": "GltfProcessed",
-      "type": "object",
-      "typeInfo": "Struct"
-    },
-    "bevy_sly_blender::components::blender_settings::lighting::BlenderBackgroundShader": {
-      "additionalProperties": false,
-      "isComponent": true,
-      "isResource": false,
-      "long_name": "bevy_sly_blender::components::blender_settings::lighting::BlenderBackgroundShader",
+      "long_name": "bevy_sly_blender::lighting::BlenderBackgroundShader",
       "properties": {
         "color": {
           "type": {
@@ -7440,11 +7377,11 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::components::blender_settings::lighting::BlenderLightShadows": {
+    "bevy_sly_blender::lighting::BlenderLightShadows": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::components::blender_settings::lighting::BlenderLightShadows",
+      "long_name": "bevy_sly_blender::lighting::BlenderLightShadows",
       "properties": {
         "buffer_bias": {
           "type": {
@@ -7465,11 +7402,11 @@
       "type": "object",
       "typeInfo": "Struct"
     },
-    "bevy_sly_blender::components::blender_settings::lighting::BlenderShadowSettings": {
+    "bevy_sly_blender::lighting::BlenderShadowSettings": {
       "additionalProperties": false,
       "isComponent": true,
       "isResource": false,
-      "long_name": "bevy_sly_blender::components::blender_settings::lighting::BlenderShadowSettings",
+      "long_name": "bevy_sly_blender::lighting::BlenderShadowSettings",
       "properties": {
         "cascade_size": {
           "type": {
@@ -7483,6 +7420,22 @@
       "short_name": "BlenderShadowSettings",
       "type": "object",
       "typeInfo": "Struct"
+    },
+    "bevy_sly_blender::materials::MaterialName": {
+      "isComponent": true,
+      "isResource": false,
+      "items": false,
+      "long_name": "bevy_sly_blender::materials::MaterialName",
+      "prefixItems": [
+        {
+          "type": {
+            "$ref": "#/$defs/alloc::string::String"
+          }
+        }
+      ],
+      "short_name": "MaterialName",
+      "type": "array",
+      "typeInfo": "TupleStruct"
     },
     "bevy_sprite::mesh2d::color_material::ColorMaterial": {
       "additionalProperties": false,

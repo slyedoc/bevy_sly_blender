@@ -293,8 +293,7 @@ class BevySettings(bpy.types.PropertyGroup):
         # this will also call load_registry
         self.save_settings(None)
 
-    def add_blueprint(self, blueprint): 
-        self.blueprints_list.append(blueprint)
+
 
     # blueprints: any collection with either
     # - an instance
@@ -580,14 +579,14 @@ class BevySettings(bpy.types.PropertyGroup):
             )
 
         # remove blueprints list from main scene
-        assets_list = None
-        assets_list_name = f"assets_list_{scene.name}_components"
+        # assets_list = None
+        # assets_list_name = f"assets_list_{scene.name}_components"
 
-        for object in scene.objects:
-            if object.name == assets_list_name:
-                assets_list = object
-        if assets_list is not None:
-            bpy.data.objects.remove(assets_list, do_unlink=True)
+        # for object in scene.objects:
+        #     if object.name == assets_list_name:
+        #         assets_list = object
+        # if assets_list is not None:
+        #     bpy.data.objects.remove(assets_list, do_unlink=True)
 
     # clear & remove "hollow scene"
     def clear_hollow_scene(self, temp_scene, original_root_collection):
@@ -987,10 +986,17 @@ class BevySettings(bpy.types.PropertyGroup):
         used_material_names = list(set(used_material_names))
         return used_material_names
 
+    # create the directories for the exported assets if they do not exist
+    def create_dirs(self):
+        for path in [LEVELS_PATH, BLUEPRINTS_PATH, MATERIALS_PATH]:
+            folder = os.path.join(self.assets_path, path);
+            if not os.path.exists(folder):
+                os.makedirs(folder)
 
     # export the scenes, blueprints, materials etc
     def export(self, changes_per_scene, changed_export_parameters):
-
+        
+        self.create_dirs()
         [level_scene_names, level_scenes, library_scene_names, library_scenes] = self.get_scenes()
 
         # have the export parameters (not auto export, just gltf export) have changed: if yes (for example switch from glb to gltf, compression or not, animations or not etc), we need to re-export everything
@@ -1004,11 +1010,13 @@ class BevySettings(bpy.types.PropertyGroup):
             for blueprint in self.data.internal_blueprints:
                 blueprint.collection["export_path"] = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")           
 
-            for blueprint in self.data.blueprints:
-                self.add_blueprint(blueprint)
+            # create blueprints folder if it does not exist
+
+            for blueprint in self.data.blueprints:                    
+                self.blueprints_list.append(blueprint)                
 
             # Step 2: Create custom compoents based on the scene settings
-            # TODO: Custom Scene settings, with 
+            # TODO: Custom Scene settings, coming back to this
             if EXPORT_SCENE_SETTINGS:
                 for scene in level_scenes:
                     lighting_components_name = f"lighting_components_{scene.name}"
@@ -1037,17 +1045,19 @@ class BevySettings(bpy.types.PropertyGroup):
                         light['BlenderLightShadows'] = f"(enabled: {enabled}, buffer_bias: {light.shadow_buffer_bias})"
 
             # Step 3: Export materials to its own glb so they can be shared            
-            # since materials export adds components we need to call this before blueprints are exported        
+            # since materials export adds components we need to call this before blueprints are exported
+            
             current_project_name = Path(bpy.context.blend_data.filepath).stem
             used_material_names = self.get_all_materials(library_scenes)            
 
-            self.generate_and_export(
-                settings={},
-                temp_scene_name="__materials_scene",        
-                gltf_output_path=os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials"),
-                tempScene_filler= lambda temp_collection: generate_materials_scene_content(temp_collection, used_material_names),
-                tempScene_cleaner= lambda temp_scene, params: clear_materials_scene(temp_scene)
-            )
+            if len(used_material_names) > 0:
+                self.generate_and_export(
+                    settings={},
+                    temp_scene_name="__materials_scene",        
+                    gltf_output_path=os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials"),
+                    tempScene_filler= lambda temp_collection: generate_materials_scene_content(temp_collection, used_material_names),
+                    tempScene_cleaner= lambda temp_scene, params: clear_materials_scene(temp_scene)
+                )
 
             # Step 4: Export blueprints and levels
             # get blueprints and levels
@@ -1092,13 +1102,13 @@ class BevySettings(bpy.types.PropertyGroup):
                 obj.select_set(True)
         
             # Clear the material info from the objects        
-            for scene in library_scenes:
-                root_collection = scene.collection
-                for cur_collection in traverse_tree(root_collection):
-                    if cur_collection.name in self.data.blueprint_names:
-                        for object in cur_collection.all_objects:
-                            if 'MaterialInfo' in dict(object): # FIXME: hasattr does not work ????
-                                del object["MaterialInfo"]
+            # for scene in library_scenes:
+            #     root_collection = scene.collection
+            #     for cur_collection in traverse_tree(root_collection):
+            #         if cur_collection.name in self.data.blueprint_names:
+            #             for object in cur_collection.all_objects:
+            #                 if 'MaterialInfo' in dict(object): # FIXME: hasattr does not work ????
+            #                     del object["MaterialInfo"]
 
             # else:
             #     for scene_name in level_scene_names:

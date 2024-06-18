@@ -1,6 +1,6 @@
 use bevy::{
     ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command},
-    gltf::{Gltf, GltfExtras},
+    gltf::Gltf,
     prelude::*,
 };
 use std::any::TypeId;
@@ -79,12 +79,12 @@ pub(crate) fn spawn_blueprint_from_gltf(
 }
 
 // This is an attemp to flatten entities
-// tons of the orginal code was trying to clean up after bevy_scene and gltf parser created heirarchies
+// tons of the orginal code was trying to clean up after bevy_scene and io_scene_gltf2 and gltf parser created heirarchies
 // this instead bypasses scene bundle and copies the entities directly to the app world, directly from loaded gltf
 // coping logic is based on bevy_scene::scene::write_to_world_with
 // we make some assumptions about gltf parser inserts entities in order
 // by heirarchy and assume root entity is always 0v1 and never has anything useful on it, so we skip it
-// we also assume 0v1 only hase one child, making 1v1 the entity we want as new root entity
+// we also assume 0v1 only has one child, making 1v1 the entity we want as new root entity
 const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
 const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
 
@@ -169,13 +169,7 @@ impl Command for SpawnBlueprint {
                             .expect("Failed to get reflect component type id:")
                             .data::<ReflectComponent>()
                             .expect("Failed to get reflect component");
-
-                            // dont overwrite the parent
-                            if type_id == TypeId::of::<GltfExtras>() {
-                                let name = scene.world.get::<Name>(e).unwrap();
-                                let extra = scene.world.get::<GltfExtras>(e).unwrap();
-                                 info!("copying extra: {:?} {:?}", name, extra);                                
-                            }
+         
 
                         // skip if root entity, nothing useful on it                    
                         if e == SCENE_ROOT {

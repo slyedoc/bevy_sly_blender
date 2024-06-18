@@ -26,8 +26,7 @@ pub fn export_types(world: &mut World) {
     // match fs::canonicalize(&registry_save_path) {
     //     Ok(full_path) => info!("Registry path is: {}", full_path.display()),
     //     Err(e) => println!("Error resolving Registry path: {}", e),
-    // }
-
+    // }    
     let writer = File::create(&registry_save_path).expect("should have created schema file");
 
     let components_to_filter_out = &config.component_filter.clone();

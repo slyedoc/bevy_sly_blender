@@ -1,8 +1,9 @@
 use bevy::{
     ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command},
-    gltf::Gltf,
+    gltf::{Gltf, GltfExtras},
     prelude::*,
 };
+use core::panic;
 use std::any::TypeId;
 
 use crate::{BlenderPluginConfig, BlueprintSpawned, GltfFormat};
@@ -45,7 +46,6 @@ pub(crate) fn spawn_blueprint_from_gltf(
     assets_gltf: Res<Assets<Gltf>>,
 ) {
     for (entity, gltf) in spawn_placeholders.iter() {
-        
         let gltf = assets_gltf
             .get(&gltf.0)
             .unwrap_or_else(|| panic!("gltf file {:?} should have been loaded", &gltf.0));
@@ -59,22 +59,23 @@ pub(crate) fn spawn_blueprint_from_gltf(
         let scene = &gltf.named_scenes[main_scene_name];
 
         // new way
+        #[cfg(not(feature = "nested"))]
         commands.add(SpawnBlueprint {
             handle: scene.clone(),
             root: entity,
         });
 
         // simplefied old way, leaving for comparisons
-        // commands
-        //     .entity(entity)
-        //     // need extra child to avoid loosing this entities transform
-        //     .with_children(|parent| {
-        //         parent.spawn(SceneBundle {
-        //             scene: scene.clone(),
-        //             ..Default::default()
-        //         });
-        //     });
-        
+        #[cfg(feature = "nested")]
+        commands
+            .entity(entity)
+            // need extra child to avoid loosing this entities transform
+            .with_children(|parent| {
+                parent.spawn(SceneBundle {
+                    scene: scene.clone(),
+                    ..Default::default()
+                });
+            });
     }
 }
 
@@ -116,38 +117,40 @@ impl Command for SpawnBlueprint {
             let type_registry = world.resource::<AppTypeRegistry>().clone();
             let type_registry = type_registry.read();
 
+            // TODO: Havent seen any use of resources in blueprints yet
             // Copy Resources
-            for (component_id, resource_data) in scene.world.storages().resources.iter() {
-                if !resource_data.is_present() {
-                    continue;
-                }
+            // for (component_id, resource_data) in scene.world.storages().resources.iter() {
+            //     dbg!(&component_id);
+            //     if !resource_data.is_present() {
+            //         continue;
+            //     }
 
-                let component_info = scene
-                    .world
-                    .components()
-                    .get_info(component_id)
-                    .expect("component_ids in archetypes should have ComponentInfo");
+            //     let component_info = scene
+            //         .world
+            //         .components()
+            //         .get_info(component_id)
+            //         .expect("component_ids in archetypes should have ComponentInfo");
 
-                let type_id = component_info
-                    .type_id()
-                    .expect("reflected resources must have a type_id");
+            //     let type_id = component_info
+            //         .type_id()
+            //         .expect("reflected resources must have a type_id");
 
-                let Some(registration) = type_registry.get(type_id) else {
-                    error!(
-                        "Failed to get type registry: {}",
-                        component_info.name().to_string()
-                    );
-                    continue;
-                };
-                let Some(reflect_resource) = registration.data::<ReflectResource>() else {
-                    error!(
-                        "Failed to get reflect resource: {}",
-                        registration.type_info().type_path().to_string()
-                    );
-                    continue;
-                };
-                reflect_resource.copy(&scene.world, world);
-            }
+            //     let Some(registration) = type_registry.get(type_id) else {
+            //         error!(
+            //             "Failed to get type registry: {}",
+            //             component_info.name().to_string()
+            //         );
+            //         continue;
+            //     };
+            //     let Some(reflect_resource) = registration.data::<ReflectResource>() else {
+            //         error!(
+            //             "Failed to get reflect resource: {}",
+            //             registration.type_info().type_path().to_string()
+            //         );
+            //         continue;
+            //     };
+            //     reflect_resource.copy(&scene.world, world);
+            // }
 
             // map of scene to app world entities
             let mut entity_map = EntityHashMap::default();
@@ -169,9 +172,8 @@ impl Command for SpawnBlueprint {
                             .expect("Failed to get reflect component type id:")
                             .data::<ReflectComponent>()
                             .expect("Failed to get reflect component");
-         
 
-                        // skip if root entity, nothing useful on it                    
+                        // skip if root entity, nothing useful on it
                         if e == SCENE_ROOT {
                             // sanity checks
                             if type_id == TypeId::of::<Transform>() {
@@ -182,13 +184,14 @@ impl Command for SpawnBlueprint {
                             }
                             if type_id == TypeId::of::<Children>() {
                                 let children = scene.world.get::<Children>(e).unwrap();
-                                // all my blueprints have only one child, this may change                          
+                                // all my blueprints have only one child, this may change
                                 assert!(children.iter().len() == 1);
                             }
-                            // dont copy anything from root entity
+                            if type_id == TypeId::of::<GltfExtras>() {
+                                panic!("GltfExtras should have been copied to the app world");    
+                            }                          
                             continue;
                         }
-
 
                         // get or create app world entity
                         // entry already exsits for SCENE_NEW_ROOT
@@ -207,15 +210,30 @@ impl Command for SpawnBlueprint {
                             if type_id == TypeId::of::<Parent>() {
                                 continue;
                             }
+
                             // apply the root entity's transform to existing entity
                             // but dont copy it
                             if type_id == TypeId::of::<Transform>() {
+                                let name = scene
+                                    .world
+                                    .get::<Name>(e)
+                                    .unwrap_or(&Name::default())
+                                    .to_string();
+
                                 let scene_trans = scene.world.get::<Transform>(e).unwrap().clone();
-                                let mut trans = world.get_mut::<Transform>(*entity).unwrap();
-    
+                                let mut trans =
+                                    world.get_mut::<Transform>(*entity).unwrap_or_else(|| {
+                                        panic!("Failed to get transform for entity {:?}", name)
+                                    });
+
+                                let data = format!(
+                                    "name: {:?}: scene scale:{:?}",
+                                    name, scene_trans.scale
+                                );
+                                dbg!(data);
                                 trans.translation += scene_trans.translation;
                                 trans.rotation *= scene_trans.rotation;
-                                trans.scale *= scene_trans.scale;                                
+                                trans.scale *= scene_trans.scale;
                                 continue;
                             }
                         }

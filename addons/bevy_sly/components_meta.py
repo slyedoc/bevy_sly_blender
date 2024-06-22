@@ -7,6 +7,13 @@ from bpy_types import (PropertyGroup)
 from .propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
 from .propGroups.conversions_to_prop_group import property_group_value_from_custom_property_value
 
+# TODO: so there is bevy_components(json string) data on objects in the scene
+# for obj in bpy.context.scene.objects:    
+#   if 'bevy_components' in object:
+#       bevy_components = json.loads(object['bevy_components'])
+
+# components_meta (see below)
+
 class ComponentMetadata(bpy.types.PropertyGroup):
     short_name : bpy.props.StringProperty(
         name = "name",
@@ -46,21 +53,15 @@ class ComponentMetadata(bpy.types.PropertyGroup):
     ) # type: ignore
 
 class ComponentsMeta(PropertyGroup):
-    infos_per_component:  StringProperty(
-        name="infos per component",
-        description="component"
-    ) # type: ignore
     components: bpy.props.CollectionProperty(type = ComponentMetadata)  # type: ignore
 
     @classmethod
     def register(cls):
         return
-        #bpy.types.Object.components_meta = PointerProperty(type=ComponentsMeta)
 
     @classmethod
     def unregister(cls):
         return
-        #del bpy.types.Object.components_meta
 
 # remove no longer valid metadata from object
 def cleanup_invalid_metadata(object):

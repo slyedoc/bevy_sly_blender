@@ -1,7 +1,6 @@
 #![feature(const_type_id)] // for type_id exclude list
 
 pub mod aabb;
-pub mod components;
 pub mod levels;
 pub mod lighting;
 pub mod materials;
@@ -15,6 +14,10 @@ pub mod blueprints;
 pub use blueprints::*;
 pub use levels::*;
 
+#[cfg(feature = "physics")]
+pub mod physics;
+
+
 #[cfg(feature = "registry")]
 pub mod registry;
 #[cfg(feature = "registry")]
@@ -26,14 +29,14 @@ pub use animation::*;
 use core::fmt;
 use std::path::PathBuf;
 
-use bevy::{prelude::*, render::primitives::Aabb, utils::HashMap};
+use bevy::{gltf::GltfExtras, prelude::*, render::primitives::Aabb, utils::HashMap};
 
 mod ronstring_to_reflect_component;
 pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        blueprints::*, components::*, levels::*, materials::*,
+        blueprints::*, levels::*, materials::*,
         assets::*, BlenderPlugin, GltfBlueprintsSet,
         GltfFormat,
     };
@@ -125,8 +128,9 @@ impl Plugin for BlenderPlugin {
         }
 
         app.add_plugins((
-            lighting::plugin,   // custom lighting
-            components::plugin, // spawn components from gltf extras
+            lighting::plugin,   // custom lighting            
+            #[cfg(feature = "physics")]
+            physics::plugin
         ))
         // rest
         .register_type::<BlueprintName>()
@@ -139,6 +143,7 @@ impl Plugin for BlenderPlugin {
         .register_type::<AnimationMarkers>()
         .register_type::<HashMap<u32, Vec<String>>>()
         .register_type::<HashMap<String, HashMap<u32, Vec<String>>>>()
+        
         .add_event::<AnimationMarkerReached>()
         .add_event::<BlueprintSpawned>()
         .register_type::<HashMap<String, Vec<String>>>()
@@ -191,6 +196,10 @@ impl Plugin for BlenderPlugin {
                 trigger_instance_animation_markers_events,
                 trigger_blueprint_animation_markers_events,
             ),
+        )
+        .add_systems(
+            Update,
+            gltf_extras.in_set(GltfBlueprintsSet::Injection),
         );
     }
 }
@@ -217,4 +226,28 @@ impl fmt::Display for GltfFormat {
 
 fn aabbs_enabled(blueprints_config: Res<BlenderPluginConfig>) -> bool {
     blueprints_config.aabbs
+}
+
+// parse gltf extras on added and spawn the components
+fn gltf_extras(world: &mut World) {
+    let extras = world
+        .query_filtered::<(Entity, &GltfExtras), Added<GltfExtras>>()
+        .iter(world)
+        .map(|(entity, extra)| (entity.clone(), extra.clone()))
+        .collect::<Vec<(Entity, GltfExtras)>>();
+
+    world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
+        let type_registry = type_registry.read();
+        for (entity, extra) in extras {
+            let reflect_components = ronstring_to_reflect_component(&extra.value, &type_registry);
+            for (component, type_registration) in reflect_components {
+                let mut entity_mut = world.entity_mut(entity);
+                //dbg!(type_registration.type_info().type_path());
+                type_registration
+                    .data::<ReflectComponent>()
+                    .expect("Unable to reflect component")
+                    .insert(&mut entity_mut, &*component, &type_registry);
+            }
+        }
+    });
 }

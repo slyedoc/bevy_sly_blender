@@ -5,10 +5,13 @@ edition = "2021"
 
 
 [features]
-default = ["inspector", "registry"]
+default = ["inspector", "registry", "physics"]
+physics = [ "bevy_xpbd_3d" ]
 registry = [] # optional feature to enable the registry
 inspector = [ "bevy-inspector-egui" ]
+nested = [] # testing feature to test flat vs nested
 animation = [] # optional feature to enable the animation system
+
 
 [dependencies]
 bevy = { version = "0.13" }
@@ -17,6 +20,8 @@ serde = "1.0.202"
 serde_json = "1.0.117"
 bevy-inspector-egui = { version = "0.24", optional = true }
 bevy_asset_loader = { version = "0.20" }
+
+bevy_xpbd_3d = { version = "0.4", optional = true }
 
 # iter utils
 strum = { version = "0.26", features = ["derive"] }

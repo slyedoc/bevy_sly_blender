@@ -4,7 +4,6 @@ from bpy.props import (StringProperty)
 from .settings import BevySettings
 
 
-
 # this one is for UI only, and its inner list contains a useable list of shortnames of components
 class ComponentDefinitionsList(bpy.types.PropertyGroup):
     def filter_components(self, context):

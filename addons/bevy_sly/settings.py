@@ -10,7 +10,7 @@ import traceback
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
-
+from bpy_types import PropertyGroup
 from bpy.props import (BoolProperty, StringProperty, CollectionProperty, IntProperty, PointerProperty, EnumProperty, FloatProperty,FloatVectorProperty )
 
 from .helpers.custom_scene_components import ambient_color_to_component, scene_ao_to_component, scene_bloom_to_component, scene_shadows_to_component
@@ -18,14 +18,10 @@ from .helpers.collections import recurLayerCollection, traverse_tree
 from .helpers.dynamic import is_object_dynamic, is_object_static
 from .helpers.materials import clear_materials_scene, generate_materials_scene_content
 from .helpers.object_makers import make_empty
-
 from .components_meta import add_metadata_to_components_without_metadata
+from .propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
 
-from .propGroups.process_component import process_component
-from .propGroups.prop_groups import update_component
-from .propGroups.utils import update_calback_helper
-
-from .util import BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS,  EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, SETTING_NAME, TEMPSCENE_PREFIX
+from .util import BLENDER_PROPERTY_MAPPING, BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS,  EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, SETTING_NAME, TEMPSCENE_PREFIX, VALUE_TYPES_DEFAULTS
 
 class SceneSelector(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty() # type: ignore
@@ -72,8 +68,22 @@ class Blueprint:
         return f'Name: "{self.name}", Local: {self.local}, Scene: {self.scene}, Instances: {self.instances},  Objects: {self.objects}, nested_blueprints: {self.nested_blueprints}'
 
 @dataclass
+class TypeInfo:
+    isComponent: bool
+    isResource: bool
+    items: Any #{
+        #"type": {
+          #"$ref": "#/$defs/glam::Quat"
+        #}
+      #},
+    long_name: str # "alloc::vec::Vec<glam::Quat>"
+    short_name: str # "Vec<Quat>",
+    type: str # "array",
+    typeInfo: str # "List"
+   
+@dataclass
 class RegistryData:
-    type_infos: Dict[str, Any]
+    type_infos: Dict[str, TypeInfo]
     type_infos_missing: List[str]
     component_propertyGroups: Dict[str, Any] 
     custom_types_to_add: Dict[str, Any]
@@ -677,13 +687,42 @@ class BevySettings(bpy.types.PropertyGroup):
         else:
             print(f"WARN: registy file does not exist: {self.registry_file}")
             return
+        
+        ## main callback function, fired whenever any property changes, no matter the nesting level
+        def update_component(self, context, definition: TypeInfo, component_name):
+            bevy = bpy.context.window_manager.bevy ## type: BevySettings
+
+            current_object = bpy.context.object
+            update_disabled = current_object["__disable__update"] if "__disable__update" in current_object else False
+            update_disabled = bevy.disable_all_object_updates or update_disabled # global settings
+            if update_disabled:
+                return
+            print("")
+            print("update in component", component_name, self, "current_object", current_object.name)
+            components_in_object = current_object.components_meta.components
+            component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_in_object), None)
+
+            if component_meta != None:
+                property_group_name = bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
+                property_group = getattr(component_meta, property_group_name)
+                # we use our helper to set the values
+                object = context.object
+                previous = json.loads(object['bevy_components'])
+                previous[component_name] = property_group_value_to_custom_property_value(property_group, definition, bevy, None)
+                object['bevy_components'] = json.dumps(previous)
+
+        # def update_calback_helper(definition, update, component_name_override):
+        #     return lambda self, context: update(self, context, definition, component_name_override)
 
         # Generate propertyGroups for all components
         for component_name in self.type_data.type_infos:
-            definition = self.type_data.type_infos[component_name]
-            is_component = definition['isComponent'] if "isComponent" in definition else False
-            root_property_name = component_name if is_component else None
-            process_component(self, definition, update_calback_helper(definition, update_component, root_property_name), None, [])
+             definition = self.type_data.type_infos[component_name]
+             is_component = definition['isComponent'] if "isComponent" in definition else False
+             root_property_name = component_name if is_component else None
+             #self.process_component(definition,  update_calback_helper(definition, update_component, root_property_name), None, [])
+             self.process_component(definition,  lambda self, context: update_component(self, context, definition, root_property_name ), None, [])
+        
+
 
         # if we had to add any wrapper types on the fly, process them now
         for long_name in self.type_data.custom_types_to_add:
@@ -718,10 +757,433 @@ class BevySettings(bpy.types.PropertyGroup):
         for object in bpy.data.objects:
             add_metadata_to_components_without_metadata(object)
 
-    # TODO: move to registry data    
-    # we keep a list of component propertyGroup around 
-    def register_component_propertyGroup(self, name, propertyGroup):
-        self.type_data.component_propertyGroups[name] = propertyGroup
+    
+
+
+    # TODO: so this kinda blew my mind because not only does it recursively handle nested components, 
+    # and all the different types, but ithen it generates __annotations__ which is a special class definition
+    # system just for blender, and it does this by creating a new class with the type() function
+    # becuase blender and python ...reasons and
+    def process_component(self, definition: TypeInfo, update, extras=None, nesting = [], nesting_long_names = []):
+        long_name = definition['long_name']
+        short_name = definition["short_name"]
+        type_info = definition["typeInfo"] if "typeInfo" in definition else None
+        type_def = definition["type"] if "type" in definition else None
+        properties = definition["properties"] if "properties" in definition else {}
+        prefixItems = definition["prefixItems"] if "prefixItems" in definition else []
+
+        has_properties = len(properties.keys()) > 0
+        has_prefixItems = len(prefixItems) > 0
+        is_enum = type_info == "Enum"
+        is_list = type_info == "List"
+        is_map = type_info == "Map"
+
+        __annotations__ = {}
+        tupple_or_struct = None
+
+        with_properties = False
+        with_items = False
+        with_enum = False
+        with_list = False
+        with_map = False
+
+
+        if has_properties:
+            __annotations__ = __annotations__ | self.process_structs(definition, properties, update, nesting, nesting_long_names)
+            with_properties = True
+            tupple_or_struct = "struct"
+
+        if has_prefixItems:
+            __annotations__ = __annotations__ | self.process_tupples(definition, prefixItems, update, nesting, nesting_long_names)
+            with_items = True
+            tupple_or_struct = "tupple"
+
+        if is_enum:
+            __annotations__ = __annotations__ | self.process_enum(definition, update, nesting, nesting_long_names)
+            with_enum = True
+
+        if is_list:
+            __annotations__ = __annotations__ | self.process_list(definition, update, nesting, nesting_long_names)
+            with_list= True
+
+        if is_map:
+            __annotations__ = __annotations__ | self.process_map(definition, update, nesting, nesting_long_names)
+            with_map = True
+        
+        field_names = []
+        for a in __annotations__:
+            field_names.append(a)
+    
+
+        extras = extras if extras is not None else {
+            "long_name": long_name
+        }
+        root_component = nesting_long_names[0] if len(nesting_long_names) > 0 else long_name
+        # print("")
+        property_group_params = {
+            **extras,
+            '__annotations__': __annotations__,
+            'tupple_or_struct': tupple_or_struct,
+            'field_names': field_names, 
+            **dict(with_properties = with_properties, with_items= with_items, with_enum= with_enum, with_list= with_list, with_map = with_map, short_name= short_name, long_name=long_name),
+            'root_component': root_component
+        }
+        #FIXME: YIKES, but have not found another way: 
+        """ Withouth this ; the following does not work
+        -BasicTest
+        - NestingTestLevel2
+            -BasicTest => the registration & update callback of this one overwrites the first "basicTest"
+        have not found a cleaner workaround so far
+        """
+        property_group_name = self.generate_propGroup_name(nesting, long_name)
+
+        def property_group_from_infos(property_group_name, property_group_parameters):
+            # print("creating property group", property_group_name)
+            property_group_class = type(property_group_name, (PropertyGroup,), property_group_parameters)
+            bpy.utils.register_class(property_group_class)
+            property_group_pointer = PointerProperty(type=property_group_class)
+            return (property_group_pointer, property_group_class)
+        
+        (property_group_pointer, property_group_class) = property_group_from_infos(property_group_name, property_group_params)
+        
+        # add our component propertyGroup to the registry
+        self.type_data.component_propertyGroups[property_group_name] = property_group_pointer
+        
+        return (property_group_pointer, property_group_class)
+
+
+    def process_enum(self, definition: TypeInfo, update, nesting, nesting_long_names):
+        short_name = definition["short_name"]
+        long_name = definition["long_name"]
+
+        type_def = definition["type"] if "type" in definition else None
+        variants = definition["oneOf"]
+
+        nesting = nesting + [short_name]
+        nesting_long_names = nesting_long_names = [long_name]
+
+        __annotations__ = {}
+        original_type_name = "enum"
+
+        # print("processing enum", short_name, long_name, definition)
+
+        if type_def == "object":
+            labels = []
+            additional_annotations = {}
+            for variant in variants:
+                variant_name = variant["long_name"]
+                variant_prefixed_name = "variant_" + variant_name
+                labels.append(variant_name)
+
+                if "prefixItems" in variant:
+                    #print("tupple variant in enum", variant)
+                    self.add_custom_type(variant_name, variant)
+                    (sub_component_group, _) = self.process_component(variant, update, {"nested": True}, nesting, nesting_long_names) 
+                    additional_annotations[variant_prefixed_name] = sub_component_group
+                elif "properties" in variant:
+                    #print("struct variant in enum", variant)
+                    self.add_custom_type(variant_name, variant)
+                    (sub_component_group, _) = self.process_component(variant, update, {"nested": True}, nesting, nesting_long_names) 
+                    additional_annotations[variant_prefixed_name] = sub_component_group
+                else: # for the cases where it's neither a tupple nor a structs: FIXME: not 100% sure of this
+                    #print("other variant in enum")
+                    annotations = {"variant_"+variant_name: StringProperty(default="----<ignore_field>----")}
+                    additional_annotations = additional_annotations | annotations
+
+            items = tuple((e, e, e) for e in labels)
+
+            blender_property_def = BLENDER_PROPERTY_MAPPING[original_type_name]
+            blender_property = blender_property_def["type"](
+                **blender_property_def["presets"],# we inject presets first
+                items=items, # this is needed by Blender's EnumProperty , which we are using here
+                update= update
+    )
+            __annotations__["selection"] = blender_property
+
+            for a in additional_annotations:
+                __annotations__[a] = additional_annotations[a]
+            # enum_value => what field to display
+            # a second field + property for the "content" of the enum
+        else:
+            items = tuple((e, e, "") for e in variants)        
+            blender_property_def = BLENDER_PROPERTY_MAPPING[original_type_name]
+            blender_property = blender_property_def["type"](
+                **blender_property_def["presets"],# we inject presets first
+                items=items,
+                update= update
+            )
+            __annotations__["selection"] = blender_property
+        
+        return __annotations__
+
+    def process_tupples(self, definition: TypeInfo, prefixItems, update, nesting=[], nesting_long_names=[]):
+        type_infos = self.type_data.type_infos
+        long_name = definition["long_name"]
+        short_name = definition["short_name"]
+
+        nesting = nesting + [short_name]
+        nesting_long_names = nesting_long_names + [long_name]
+        __annotations__ = {}
+
+        default_values = []
+        prefix_infos = []
+        for index, item in enumerate(prefixItems):
+            ref_name = item["type"]["$ref"].replace("#/$defs/", "")
+
+            property_name = str(index)# we cheat a bit, property names are numbers here, as we do not have a real property name
+        
+            if ref_name in type_infos:
+                original = type_infos[ref_name]
+                original_long_name = original["long_name"]
+                is_value_type = original_long_name in VALUE_TYPES_DEFAULTS
+
+                value = VALUE_TYPES_DEFAULTS[original_long_name] if is_value_type else None
+                default_values.append(value)
+                prefix_infos.append(original)
+
+                if is_value_type:
+                    if original_long_name in BLENDER_PROPERTY_MAPPING:
+                        blender_property_def = BLENDER_PROPERTY_MAPPING[original_long_name]
+                        blender_property = blender_property_def["type"](
+                            **blender_property_def["presets"],# we inject presets first
+                            name = property_name, 
+                            default=value,
+                            update= update
+                        )
+                    
+                        __annotations__[property_name] = blender_property
+                else:
+                    original_long_name = original["long_name"]
+                    (sub_component_group, _) = self.process_component(original, update, {"nested": True, "long_name": original_long_name}, nesting)
+                    __annotations__[property_name] = sub_component_group
+            else: 
+                # component not found in type_infos, generating placeholder
+                __annotations__[property_name] = StringProperty(default="N/A")
+                self.add_missing_typeInfo(ref_name)
+                # the root component also becomes invalid (in practice it is not always a component, but good enough)
+                self.add_invalid_component(nesting_long_names[0])
+
+
+        return __annotations__
+
+
+
+    def process_list(self, definition: TypeInfo, update, nesting=[], nesting_long_names=[]):
+        
+        type_infos = self.type_data.type_infos
+
+        short_name = definition["short_name"]
+        long_name = definition["long_name"]
+        ref_name = definition["items"]["type"]["$ref"].replace("#/$defs/", "")
+
+        nesting = nesting+[short_name]
+        nesting_long_names = nesting_long_names + [long_name]
+        
+        item_definition = type_infos[ref_name]
+        item_long_name = item_definition["long_name"]
+        is_item_value_type = item_long_name in VALUE_TYPES_DEFAULTS
+
+        property_group_class = None
+        #if the content of the list is a unit type, we need to generate a fake wrapper, otherwise we cannot use layout.prop(group, "propertyName") as there is no propertyName !
+        if is_item_value_type:
+            property_group_class = self.generate_wrapper_propertyGroup(long_name, item_long_name, definition["items"]["type"]["$ref"], update)
+        else:
+            (_, list_content_group_class) = self.process_component(item_definition, update, {"nested": True, "long_name": item_long_name}, nesting)
+            property_group_class = list_content_group_class
+
+        item_collection = CollectionProperty(type=property_group_class)
+
+        item_long_name = item_long_name if not is_item_value_type else  "wrapper_" + item_long_name
+        __annotations__ = {
+            "list": item_collection,
+            "list_index": IntProperty(name = "Index for list", default = 0,  update=update),
+            "long_name": StringProperty(default=item_long_name)
+        }
+
+        return __annotations__
+
+    def process_structs(self, definition: TypeInfo, properties, update, nesting, nesting_long_names): 
+        type_infos = self.type_data.type_infos
+        
+        long_name = definition["long_name"]
+        short_name = definition["short_name"]
+
+        __annotations__ = {}
+        default_values = {}
+        nesting = nesting + [short_name]
+        nesting_long_names = nesting_long_names + [long_name]
+
+        for property_name in properties.keys():
+            ref_name = properties[property_name]["type"]["$ref"].replace("#/$defs/", "")
+            
+            if ref_name in type_infos:
+                original = type_infos[ref_name]
+                original_long_name = original["long_name"]
+                is_value_type = original_long_name in VALUE_TYPES_DEFAULTS
+                value = VALUE_TYPES_DEFAULTS[original_long_name] if is_value_type else None
+                default_values[property_name] = value
+
+                if is_value_type:
+                    if original_long_name in BLENDER_PROPERTY_MAPPING:
+                        blender_property_def = BLENDER_PROPERTY_MAPPING[original_long_name]
+                        blender_property = blender_property_def["type"](
+                            **blender_property_def["presets"],# we inject presets first
+                            name = property_name,
+                            default = value,
+                            update = update
+                        )
+                        __annotations__[property_name] = blender_property
+                else:
+                    original_long_name = original["long_name"]
+                    (sub_component_group, _) = self.process_component(original, update, {"nested": True, "long_name": original_long_name}, nesting, nesting_long_names)
+                    __annotations__[property_name] = sub_component_group
+            # if there are sub fields, add an attribute "sub_fields" possibly a pointer property ? or add a standard field to the type , that is stored under "attributes" and not __annotations (better)
+            else:
+                # component not found in type_infos, generating placeholder
+                __annotations__[property_name] = StringProperty(default="N/A")
+                self.add_missing_typeInfo(ref_name)
+                # the root component also becomes invalid (in practice it is not always a component, but good enough)
+                self.add_invalid_component(nesting_long_names[0])
+
+        return __annotations__
+
+
+    def process_map(self, definition, update, nesting=[], nesting_long_names=[]):
+        
+        type_infos = self.type_data.type_infos
+
+        short_name = definition["short_name"]
+        long_name = definition["long_name"]
+
+        nesting = nesting + [short_name]
+        nesting_long_names = nesting_long_names + [long_name]
+
+        value_ref_name = definition["valueType"]["type"]["$ref"].replace("#/$defs/", "")
+        key_ref_name = definition["keyType"]["type"]["$ref"].replace("#/$defs/", "")
+
+        #print("definition", definition)
+        __annotations__ = {}
+        if key_ref_name in type_infos:
+            key_definition = type_infos[key_ref_name]
+            original_long_name = key_definition["long_name"]
+            is_key_value_type = original_long_name in VALUE_TYPES_DEFAULTS
+            definition_link = definition["keyType"]["type"]["$ref"]
+
+            #if the content of the list is a unit type, we need to generate a fake wrapper, otherwise we cannot use layout.prop(group, "propertyName") as there is no propertyName !
+            if is_key_value_type:
+                keys_property_group_class = self.generate_wrapper_propertyGroup(f"{long_name}_keys", original_long_name, definition_link, update)
+            else:
+                (_, list_content_group_class) = self.process_component(key_definition, update, {"nested": True, "long_name": original_long_name}, nesting, nesting_long_names)
+                keys_property_group_class = list_content_group_class
+
+            keys_collection = CollectionProperty(type=keys_property_group_class)
+            keys_property_group_pointer = PointerProperty(type=keys_property_group_class)
+        else:
+            __annotations__["list"] = StringProperty(default="N/A")
+            self.add_missing_typeInfo(key_ref_name)
+            # the root component also becomes invalid (in practice it is not always a component, but good enough)
+            self.add_invalid_component(nesting_long_names[0])
+
+        if value_ref_name in type_infos:
+            value_definition = type_infos[value_ref_name]
+            original_long_name = value_definition["long_name"]
+            is_value_value_type = original_long_name in VALUE_TYPES_DEFAULTS
+            definition_link = definition["valueType"]["type"]["$ref"]
+
+            #if the content of the list is a unit type, we need to generate a fake wrapper, otherwise we cannot use layout.prop(group, "propertyName") as there is no propertyName !
+            if is_value_value_type:
+                values_property_group_class = self.generate_wrapper_propertyGroup(f"{long_name}_values", original_long_name, definition_link, update)
+            else:
+                (_, list_content_group_class) = self.process_component( value_definition, update, {"nested": True, "long_name": original_long_name}, nesting, nesting_long_names)
+                values_property_group_class = list_content_group_class
+
+            values_collection = CollectionProperty(type=values_property_group_class)
+            values_property_group_pointer = PointerProperty(type=values_property_group_class)
+
+        else:
+            #__annotations__["list"] = StringProperty(default="N/A")
+            self.add_missing_typeInfo(value_ref_name)
+            # the root component also becomes invalid (in practice it is not always a component, but good enough)
+            self.add_invalid_component(nesting_long_names[0])
+
+
+        if key_ref_name in type_infos and value_ref_name in type_infos:
+            __annotations__ = {
+                "list": keys_collection,
+                "list_index": IntProperty(name = "Index for keys", default = 0,  update=update),
+                "keys_setter":keys_property_group_pointer,
+                
+                "values_list": values_collection,
+                "values_list_index": IntProperty(name = "Index for values", default = 0,  update=update),
+                "values_setter":values_property_group_pointer,
+            }
+        
+        """__annotations__["list"] = StringProperty(default="N/A")
+        __annotations__["values_list"] = StringProperty(default="N/A")
+        __annotations__["keys_setter"] = StringProperty(default="N/A")"""
+
+        """registry.add_missing_typeInfo(key_ref_name)
+        registry.add_missing_typeInfo(value_ref_name)
+        # the root component also becomes invalid (in practice it is not always a component, but good enough)
+        registry.add_invalid_component(nesting_long_names[0])
+        print("setting invalid flag for", nesting_long_names[0])"""
+
+        return __annotations__
+
+
+
+    # this helper creates a "fake"/wrapper property group that is NOT a real type in the registry
+    # usefull for things like value types in list items etc
+    def generate_wrapper_propertyGroup(self, wrapped_type_long_name_name, item_long_name, definition_link, update):
+        is_item_value_type = item_long_name in VALUE_TYPES_DEFAULTS
+
+        wrapper_name = "wrapper_" + wrapped_type_long_name_name
+
+        wrapper_definition = {
+            "isComponent": False,
+            "isResource": False,
+            "items": False,
+            "prefixItems": [
+                {
+                    "type": {
+                        "$ref": definition_link
+                    }
+                }
+            ],
+            "short_name": wrapper_name, # FIXME !!!
+            "long_name": wrapper_name,
+            "type": "array",
+            "typeInfo": "TupleStruct"
+        }
+
+        # we generate a very small 'hash' for the component name
+        property_group_name = self.generate_propGroup_name(nesting=[], longName=wrapper_name)
+        self.add_custom_type(wrapper_name, wrapper_definition)
+
+        blender_property = StringProperty(default="", update=update)
+        if item_long_name in BLENDER_PROPERTY_MAPPING:
+            value = VALUE_TYPES_DEFAULTS[item_long_name] if is_item_value_type else None
+            blender_property_def = BLENDER_PROPERTY_MAPPING[item_long_name]
+            blender_property = blender_property_def["type"](
+                **blender_property_def["presets"],# we inject presets first
+                name = "property_name",
+                default = value,
+                update = update
+            )
+            
+        wrapper_annotations = {
+            '0' : blender_property
+        }
+        property_group_params = {
+            '__annotations__': wrapper_annotations,
+            'tupple_or_struct': "tupple",
+            'field_names': ['0'], 
+            **dict(with_properties = False, with_items= True, with_enum= False, with_list= False, with_map =False, short_name=wrapper_name, long_name=wrapper_name),
+        }
+        property_group_class = type(property_group_name, (PropertyGroup,), property_group_params)
+        bpy.utils.register_class(property_group_class)
+
+        return property_group_class
 
     # TODO: move to registry data
     # to be able to give the user more feedback on any missin/unregistered types in their registry file

@@ -47,11 +47,14 @@ pub(crate) fn spawn_level_from_gltf(
     spawn_placeholders: Query<(Entity, &LevelGltf), Added<LevelGltf>>,
 ) {
     for (e, gltf) in spawn_placeholders.iter() {
+        dbg!(e, gltf);
         commands.add(SpawnLevel::<LevelMarker> {
             handle: gltf.0.clone(),
             root: Some(e),
             ..default()
         });
+
+
     }
 }
 

@@ -17,9 +17,9 @@ pub use levels::*;
 #[cfg(feature = "physics")]
 pub mod physics;
 
-
 #[cfg(feature = "registry")]
 pub mod registry;
+use physics::ProxyCollider;
 #[cfg(feature = "registry")]
 pub use registry::*;
 
@@ -29,15 +29,17 @@ pub use animation::*;
 use core::fmt;
 use std::path::PathBuf;
 
-use bevy::{gltf::GltfExtras, prelude::*, render::primitives::Aabb, utils::HashMap};
+use bevy::{
+    gltf::GltfExtras, prelude::*, render::primitives::Aabb, transform::TransformSystem,
+    utils::HashMap,
+};
 
 mod ronstring_to_reflect_component;
 pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        blueprints::*, levels::*, materials::*,
-        assets::*, BlenderPlugin, GltfBlueprintsSet,
+        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, GltfBlueprintsSet,
         GltfFormat,
     };
 
@@ -50,6 +52,7 @@ pub mod prelude {
 pub enum GltfBlueprintsSet {
     Injection,
     Spawn,
+    Extras,
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +85,6 @@ impl Default for BlenderPlugin {
             aabbs: false,
             component_filter: SceneFilter::default(),
             resource_filter: SceneFilter::default(),
-            
         }
     }
 }
@@ -109,8 +111,6 @@ pub struct BlenderPluginConfig {
 #[derive(Event, Debug, Clone)]
 pub struct BlueprintSpawned(pub Entity);
 
-
-
 impl Plugin for BlenderPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(feature = "registry")]
@@ -128,9 +128,9 @@ impl Plugin for BlenderPlugin {
         }
 
         app.add_plugins((
-            lighting::plugin,   // custom lighting            
+            lighting::plugin, // custom lighting
             #[cfg(feature = "physics")]
-            physics::plugin
+            physics::plugin,
         ))
         // rest
         .register_type::<BlueprintName>()
@@ -143,7 +143,6 @@ impl Plugin for BlenderPlugin {
         .register_type::<AnimationMarkers>()
         .register_type::<HashMap<u32, Vec<String>>>()
         .register_type::<HashMap<String, HashMap<u32, Vec<String>>>>()
-        
         .add_event::<AnimationMarkerReached>()
         .add_event::<BlueprintSpawned>()
         .register_type::<HashMap<String, Vec<String>>>()
@@ -164,6 +163,7 @@ impl Plugin for BlenderPlugin {
             (
                 GltfBlueprintsSet::Injection,
                 GltfBlueprintsSet::Spawn,
+                GltfBlueprintsSet::Extras,
             )
                 .chain(),
         )
@@ -172,14 +172,14 @@ impl Plugin for BlenderPlugin {
             (
                 (
                     // Spawn by names
-                    spawn_from_level_name,                    
+                    spawn_from_level_name,
                     spawn_from_blueprint_name,
-
                     apply_deferred,
                     // spawn from gltf
+                    spawn_level_from_gltf,
+                    apply_deferred,
                     spawn_blueprint_from_gltf,
-                    spawn_level_from_gltf,       
-                                 
+                    apply_deferred,
                 )
                     .chain(),
                 (aabb::compute_scene_aabbs, apply_deferred)
@@ -197,9 +197,13 @@ impl Plugin for BlenderPlugin {
                 trigger_blueprint_animation_markers_events,
             ),
         )
-        .add_systems(
+        .add_systems(Update, gltf_extras.in_set(GltfBlueprintsSet::Extras));
+
+        app.register_type::<ProxyCollider>().add_systems(
             Update,
-            gltf_extras.in_set(GltfBlueprintsSet::Injection),
+            (physics::physics_replace_proxies)
+                .after(TransformSystem::TransformPropagate)
+                .in_set(GltfBlueprintsSet::Extras),
         );
     }
 }
@@ -233,7 +237,8 @@ fn aabbs_enabled(blueprints_config: Res<BlenderPluginConfig>) -> bool {
 fn gltf_extras(world: &mut World) {
     // get the added extras
     let extras = world
-        .query_filtered::<(Entity, &GltfExtras), Added<GltfExtras>>()
+        .query::<(Entity, &GltfExtras)>()
+        //.query_filtered::<(Entity, &GltfExtras), Added<GltfExtras>>()
         .iter(world)
         .map(|(entity, extra)| (entity.clone(), extra.clone()))
         .collect::<Vec<(Entity, GltfExtras)>>();
@@ -243,8 +248,9 @@ fn gltf_extras(world: &mut World) {
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();
             for (entity, extra) in &extras {
-                let reflect_components = ronstring_to_reflect_component(&extra.value, &type_registry);
-                
+                let reflect_components =
+                    ronstring_to_reflect_component(&extra.value, &type_registry);
+
                 for (component, type_registration) in reflect_components {
                     //dbg!(entity, &component);
                     let mut entity_mut = world.entity_mut(*entity);
@@ -259,7 +265,7 @@ fn gltf_extras(world: &mut World) {
     }
 
     // remove the extras
-    // for (entity, _) in &extras {
-    //     world.entity_mut(*entity).remove::<GltfExtras>();
-    // }
+    for (entity, _) in &extras {
+        world.entity_mut(*entity).remove::<GltfExtras>();
+    }
 }

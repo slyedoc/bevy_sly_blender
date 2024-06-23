@@ -4,14 +4,6 @@ import json
 from bpy.props import (StringProperty, BoolProperty, PointerProperty)
 from bpy_types import (PropertyGroup)
 
-
-# TODO: so there is bevy_components(json string) data on objects in the scene
-# for obj in bpy.context.scene.objects:    
-#   if 'bevy_components' in object:
-#       bevy_components = json.loads(object['bevy_components'])
-
-# components_meta (see below)
-
 class ComponentMetadata(bpy.types.PropertyGroup):
     short_name : bpy.props.StringProperty(
         name = "name",

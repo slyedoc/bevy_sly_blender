@@ -1,4 +1,4 @@
-use bevy::log::{debug, warn};
+use bevy::log::{debug, info, warn};
 use bevy::reflect::serde::UntypedReflectDeserializer;
 use bevy::reflect::{Reflect, TypeRegistration, TypeRegistry};
 use bevy::utils::HashMap;
@@ -13,11 +13,12 @@ pub fn ronstring_to_reflect_component(
 ) -> Vec<(Box<dyn Reflect>, TypeRegistration)> {
     let lookup: HashMap<String, Value> = ron::from_str(ron_string).unwrap();
     let mut components: Vec<(Box<dyn Reflect>, TypeRegistration)> = Vec::new();
-    if ron_string.contains("bevy_components") {        
-        dbg!(ron_string);
-    }
+    // if ron_string.contains("bevy_components") {        
+    //     dbg!(ron_string, &lookup);
+    // }
     
     for (name, value) in lookup.into_iter() {
+        //info!("{:?}: {:?}", &name, &value);
         let parsed_value: String = match value.clone() {
             Value::String(str) => {
                 str
@@ -102,6 +103,7 @@ fn bevy_components_string_to_components(
 ) {
     let lookup: HashMap<String, Value> = ron::from_str(&parsed_value).unwrap();
     for (key, value) in lookup.into_iter() {
+        //info!("----- {:?}: {:?}", &key, &value);
         let parsed_value: String = match value.clone() {
             Value::String(str) => {
                 str

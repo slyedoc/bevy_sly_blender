@@ -117,40 +117,40 @@ impl Command for SpawnBlueprint {
             let type_registry = world.resource::<AppTypeRegistry>().clone();
             let type_registry = type_registry.read();
 
-            // TODO: Havent seen any use of resources in blueprints yet
-            // Copy Resources
-            // for (component_id, resource_data) in scene.world.storages().resources.iter() {
-            //     dbg!(&component_id);
-            //     if !resource_data.is_present() {
-            //         continue;
-            //     }
+            // TODO: Haven't seen any use of resources in blueprints yet            
+            for (_component_id, _resource_data) in scene.world.storages().resources.iter() {
+                panic!("Is this used?");
+                //     dbg!(&component_id);
+                //     if !resource_data.is_present() {
+                //         continue;
+                //     }
 
-            //     let component_info = scene
-            //         .world
-            //         .components()
-            //         .get_info(component_id)
-            //         .expect("component_ids in archetypes should have ComponentInfo");
+                //     let component_info = scene
+                //         .world
+                //         .components()
+                //         .get_info(component_id)
+                //         .expect("component_ids in archetypes should have ComponentInfo");
 
-            //     let type_id = component_info
-            //         .type_id()
-            //         .expect("reflected resources must have a type_id");
+                //     let type_id = component_info
+                //         .type_id()
+                //         .expect("reflected resources must have a type_id");
 
-            //     let Some(registration) = type_registry.get(type_id) else {
-            //         error!(
-            //             "Failed to get type registry: {}",
-            //             component_info.name().to_string()
-            //         );
-            //         continue;
-            //     };
-            //     let Some(reflect_resource) = registration.data::<ReflectResource>() else {
-            //         error!(
-            //             "Failed to get reflect resource: {}",
-            //             registration.type_info().type_path().to_string()
-            //         );
-            //         continue;
-            //     };
-            //     reflect_resource.copy(&scene.world, world);
-            // }
+                //     let Some(registration) = type_registry.get(type_id) else {
+                //         error!(
+                //             "Failed to get type registry: {}",
+                //             component_info.name().to_string()
+                //         );
+                //         continue;
+                //     };
+                //     let Some(reflect_resource) = registration.data::<ReflectResource>() else {
+                //         error!(
+                //             "Failed to get reflect resource: {}",
+                //             registration.type_info().type_path().to_string()
+                //         );
+                //         continue;
+                //     };
+                //     reflect_resource.copy(&scene.world, world);
+            }
 
             // map of scene to app world entities
             let mut entity_map = EntityHashMap::default();
@@ -226,11 +226,11 @@ impl Command for SpawnBlueprint {
                                         panic!("Failed to get transform for entity {:?}", name)
                                     });
 
-                                let data = format!(
-                                    "name: {:?}: scene scale:{:?}",
-                                    name, scene_trans.scale
-                                );
-                                dbg!(data);
+                                // let data = format!(
+                                //     "name: {:?}: scene scale:{:?}",
+                                //     name, scene_trans.scale
+                                // );
+                                // dbg!(data);
                                 trans.translation += scene_trans.translation;
                                 trans.rotation *= scene_trans.rotation;
                                 trans.scale *= scene_trans.scale;

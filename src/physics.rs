@@ -1,8 +1,7 @@
 use bevy::{
     math::vec3,
     prelude::*,
-    render::mesh::{MeshVertexAttributeId, PrimitiveTopology, VertexAttributeValues},
-    transform::TransformSystem,
+    render::mesh::{MeshVertexAttributeId, PrimitiveTopology, VertexAttributeValues},    
 };
 use bevy_xpbd_3d::{
     parry::{
@@ -14,8 +13,13 @@ use bevy_xpbd_3d::{
 
 use crate::GltfBlueprintsSet;
 
-// use crate::prelude::*;
-// use crate::utils::traits::*;
+pub(super) fn plugin(app: &mut App) {
+    app.register_type::<ProxyCollider>().add_systems(
+        Update,
+        (physics_replace_proxies).after(GltfBlueprintsSet::Extras),
+    );
+}
+
 
 #[derive(Component, Reflect, Default, Debug)]
 #[reflect(Component)]
@@ -28,21 +32,12 @@ pub enum ProxyCollider {
     Mesh,
 }
 
-pub(super) fn plugin(app: &mut App) {
-    app.register_type::<ProxyCollider>().add_systems(
-        Update,
-        (physics_replace_proxies)
-            .after(TransformSystem::TransformPropagate)
-            .after(GltfBlueprintsSet::Spawn),
-    );
-}
-
 // replaces all physics stand-ins with the actual xpbd types
-fn physics_replace_proxies(
+pub(super) fn physics_replace_proxies(
     meshes: Res<Assets<Mesh>>,
     mesh_handles: Query<&Handle<Mesh>>,
     mut proxy_colliders: Query<
-        (Entity, &ProxyCollider, Option<&Name>,),
+        (Entity, &ProxyCollider, Option<&Name>),
         (Without<Collider>, Added<ProxyCollider>),
     >,
     // needed for tri meshes
@@ -50,9 +45,11 @@ fn physics_replace_proxies(
     global_transforms: Query<&GlobalTransform>,
     mut commands: Commands,
 ) {
-    
     for (entity, collider_proxy, name_maybe) in proxy_colliders.iter_mut() {
-        let msg = format!("generating collider from proxy on {:?}: {:?}", name_maybe, collider_proxy);
+        let msg = format!(
+            "generating collider from proxy on {:?}: {:?}",
+            name_maybe, collider_proxy
+        );
         dbg!(msg);
         match collider_proxy {
             ProxyCollider::Ball(radius) => {

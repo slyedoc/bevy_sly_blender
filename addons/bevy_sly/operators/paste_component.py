@@ -2,7 +2,9 @@
 import bpy
 from bpy_types import Operator
 
-from ..components_meta import copy_propertyGroup_values_to_another_object, get_bevy_component_value_by_long_name
+from ..settings import BevySettings
+
+from ..components_meta import get_bevy_component_value_by_long_name
 
 
 class PasteComponentOperator(Operator):
@@ -12,7 +14,7 @@ class PasteComponentOperator(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context):
-        bevy = context.window_manager.bevy
+        bevy = context.window_manager.bevy # type: BevySettings
 
         source_object_name = context.window_manager.copied_source_object
         source_object = bpy.data.objects.get(source_object_name, None)
@@ -28,6 +30,6 @@ class PasteComponentOperator(Operator):
                 print("pasting component to object: component name:", str(component_name), "component value:" + str(component_value))
                 print (context.object)
                 
-                copy_propertyGroup_values_to_another_object(source_object, context.object, component_name, bevy)
+                bevy.copy_propertyGroup_values_to_another_object(source_object, context.object, component_name)
 
         return {'FINISHED'}

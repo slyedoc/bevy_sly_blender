@@ -229,25 +229,37 @@ fn aabbs_enabled(blueprints_config: Res<BlenderPluginConfig>) -> bool {
 }
 
 // parse gltf extras on added and spawn the components
+// note: using world so we can make use of ReflectComponent::insert
 fn gltf_extras(world: &mut World) {
+    // get the added extras
     let extras = world
         .query_filtered::<(Entity, &GltfExtras), Added<GltfExtras>>()
         .iter(world)
         .map(|(entity, extra)| (entity.clone(), extra.clone()))
         .collect::<Vec<(Entity, GltfExtras)>>();
 
-    world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
-        let type_registry = type_registry.read();
-        for (entity, extra) in extras {
-            let reflect_components = ronstring_to_reflect_component(&extra.value, &type_registry);
-            for (component, type_registration) in reflect_components {
-                let mut entity_mut = world.entity_mut(entity);
-                //dbg!(type_registration.type_info().type_path());
-                type_registration
-                    .data::<ReflectComponent>()
-                    .expect("Unable to reflect component")
-                    .insert(&mut entity_mut, &*component, &type_registry);
+    if !extras.is_empty() {
+        // add the components
+        world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
+            let type_registry = type_registry.read();
+            for (entity, extra) in &extras {
+                let reflect_components = ronstring_to_reflect_component(&extra.value, &type_registry);
+                
+                for (component, type_registration) in reflect_components {
+                    //dbg!(entity, &component);
+                    let mut entity_mut = world.entity_mut(*entity);
+                    type_registration
+                        .data::<ReflectComponent>()
+                        .expect("Unable to reflect component")
+                        .insert(&mut entity_mut, &*component, &type_registry);
+                }
             }
-        }
-    });
+        });
+        //dbg!(&extras);
+    }
+
+    // remove the extras
+    // for (entity, _) in &extras {
+    //     world.entity_mut(*entity).remove::<GltfExtras>();
+    // }
 }

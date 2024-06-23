@@ -3,8 +3,10 @@ import bpy
 from bpy_types import Operator
 from bpy.props import (StringProperty)
 
+from ..settings import BevySettings
+
 from ..rename_helper import RenameHelper
-from ..components_meta import get_bevy_components, rename_component
+from ..components_meta import get_bevy_components
 
 class OT_rename_component(Operator):
     """Rename Bevy component"""
@@ -30,7 +32,8 @@ class OT_rename_component(Operator):
 
     def execute(self, context):
         settings = context.window_manager.bevy_component_rename_helper # type: RenameHelper
-    
+        bevy = context.window_manager.bevy # type: BevySettings
+
         original_name = settings.original_name if self.original_name == "" else self.original_name
         new_name = self.new_name
 
@@ -45,7 +48,7 @@ class OT_rename_component(Operator):
                 if object and original_name in get_bevy_components(object) or original_name in object:
                     try:
                         # attempt conversion
-                        rename_component(object=object, original_long_name=original_name, new_long_name=new_name)
+                        bevy.rename_component(object=object, original_long_name=original_name, new_long_name=new_name)
                     except Exception as error:
                         if '__disable__update' in object:
                             del object["__disable__update"] # make sure custom properties are updateable afterwards, even in the case of failure

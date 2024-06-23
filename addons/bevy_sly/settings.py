@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 import traceback
+import re
 
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -18,8 +19,8 @@ from .helpers.collections import recurLayerCollection, traverse_tree
 from .helpers.dynamic import is_object_dynamic, is_object_static
 from .helpers.materials import clear_materials_scene, generate_materials_scene_content
 from .helpers.object_makers import make_empty
-from .components_meta import add_metadata_to_components_without_metadata
-from .propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
+from .components_meta import ComponentMetadata,  cleanup_invalid_metadata, get_bevy_component_value_by_long_name, get_bevy_components, remove_component_from_object, upsert_bevy_component
+from .prop_groups import is_def_value_type, parse_struct_string, parse_tuplestruct_string, type_mappings, conversion_tables
 
 from .util import BLENDER_PROPERTY_MAPPING, BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS,  EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, SETTING_NAME, TEMPSCENE_PREFIX, VALUE_TYPES_DEFAULTS
 
@@ -79,7 +80,8 @@ class TypeInfo:
     long_name: str # "alloc::vec::Vec<glam::Quat>"
     short_name: str # "Vec<Quat>",
     type: str # "array",
-    typeInfo: str # "List"
+    typeInfo: str | None# "List"
+    oneOf: List[Any]
    
 @dataclass
 class RegistryData:
@@ -117,23 +119,55 @@ def toggle_watcher(self, context):
         bpy.app.timers.register(watch_registry)
 
 def watch_registry():
-    self = bpy.context.window_manager.bevy # type: BevySettings
+    bevy = bpy.context.window_manager.bevy # type: BevySettings
     # print("watching schema file for changes")
     try:
-        stamp = os.stat(self.registry_file).st_mtime
+        stamp = os.stat(bevy.registry_file).st_mtime
         stamp = str(stamp)
-        if stamp != self.registry_timestamp and self.registry_timestamp != "":
-            print("FILE CHANGED !!", stamp,  self.registry_timestamp)
+        if stamp != bevy.registry_timestamp and bevy.registry_timestamp != "":
+            print("FILE CHANGED !!", stamp,  bevy.registry_timestamp)
             # see here for better ways : https://stackoverflow.com/questions/11114492/check-if-a-file-is-not-open-nor-being-used-by-another-process
             
             # TODO: this should be enabled i think
             #bpy.ops.object.reload_registry()
             # we need to add an additional delay as the file might not have loaded yet
             bpy.app.timers.register(lambda: bpy.ops.object.reload_registry(), first_interval=1)
-        self.registry_timestamp = stamp
+        bevy.registry_timestamp = stamp
     except Exception as error:
         pass
-    return self.watcher_poll_frequency if self.watcher_enabled else None
+    return bevy.watcher_poll_frequency if bevy.watcher_enabled else None
+
+def get_selected_object_or_collection(context):
+    target = None
+    object = next(iter(context.selected_objects), None)
+    collection = context.collection
+    if object is not None:
+        target = object
+    elif collection is not None:
+        target = collection
+    return target
+
+## main callback function, fired whenever any property changes, no matter the nesting level
+# 2 values (self, context) and return None. 
+def update_component(self, context, definition, component_name):
+    bevy = bpy.context.window_manager.bevy # type: BevySettings
+    
+    current_object_or_collection = get_selected_object_or_collection(context)
+    if current_object_or_collection:
+        update_disabled = current_object_or_collection["__disable__update"] if "__disable__update" in current_object_or_collection else False
+        update_disabled = bevy.disable_all_object_updates or update_disabled # global settings
+        if update_disabled:
+            return
+        components_in_object = current_object_or_collection.components_meta.components
+        component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_in_object), None)
+
+        if component_meta is not None:
+            property_group_name = bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
+            property_group = getattr(component_meta, property_group_name)
+            # we use our helper to set the values
+            previous = json.loads(current_object_or_collection['bevy_components'])
+            previous[component_name] = bevy.property_group_value_to_custom_property_value(property_group, definition, None)
+            current_object_or_collection['bevy_components'] = json.dumps(previous)
 
 class BevySettings(bpy.types.PropertyGroup):   
     # save the settings to a text datablock    
@@ -210,8 +244,8 @@ class BevySettings(bpy.types.PropertyGroup):
     mode: EnumProperty(
         items=(
             ('COMPONENTS', "Components", ""),
-            ('BLUEPRINTS', "Blueprints", ""),
-            ('ASSETS', "Assets", ""),
+            #('BLUEPRINTS', "Blueprints", ""),
+            #('ASSETS', "Assets", ""),
             ('SETTINGS', "Settings", ""),
             ('TOOLS', "Tools", ""),
         ),
@@ -658,6 +692,8 @@ class BevySettings(bpy.types.PropertyGroup):
     def has_type_infos(self):
         return len(self.type_data.type_infos.keys()) != 0
 
+
+
     def load_registry(self):
         # cleanup previous data and ui data
         self.propGroupIdCounter = 0
@@ -686,43 +722,22 @@ class BevySettings(bpy.types.PropertyGroup):
                 return
         else:
             print(f"WARN: registy file does not exist: {self.registry_file}")
-            return
-        
-        ## main callback function, fired whenever any property changes, no matter the nesting level
-        def update_component(self, context, definition: TypeInfo, component_name):
-            bevy = bpy.context.window_manager.bevy ## type: BevySettings
+            return            
 
-            current_object = bpy.context.object
-            update_disabled = current_object["__disable__update"] if "__disable__update" in current_object else False
-            update_disabled = bevy.disable_all_object_updates or update_disabled # global settings
-            if update_disabled:
-                return
-            print("")
-            print("update in component", component_name, self, "current_object", current_object.name)
-            components_in_object = current_object.components_meta.components
-            component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_in_object), None)
+        # helper function that returns a lambda, used for the PropertyGroups update function
+        def update_calback_helper(definition, update, component_name_override):
+            return lambda self, context: update(self, context, definition, component_name_override)
 
-            if component_meta != None:
-                property_group_name = bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
-                property_group = getattr(component_meta, property_group_name)
-                # we use our helper to set the values
-                object = context.object
-                previous = json.loads(object['bevy_components'])
-                previous[component_name] = property_group_value_to_custom_property_value(property_group, definition, bevy, None)
-                object['bevy_components'] = json.dumps(previous)
-
-        # def update_calback_helper(definition, update, component_name_override):
-        #     return lambda self, context: update(self, context, definition, component_name_override)
-
-        # Generate propertyGroups for all components
+        # Generate propertyGroups for all components        
         for component_name in self.type_data.type_infos:
-             definition = self.type_data.type_infos[component_name]
-             is_component = definition['isComponent'] if "isComponent" in definition else False
-             root_property_name = component_name if is_component else None
-             #self.process_component(definition,  update_calback_helper(definition, update_component, root_property_name), None, [])
-             self.process_component(definition,  lambda self, context: update_component(self, context, definition, root_property_name ), None, [])
+            definition = self.type_data.type_infos.get(component_name, None) 
+            if definition:
+                self.process_component(definition, update_calback_helper(definition, update_component, component_name), None, [])
+                #process_component(registry, definition, , extras=None, nesting_long_names=[])
         
-
+            else:
+                print(f"ERROR: could not find definition for component {component_name}")
+                #self.type_data.type_infos_missing.append(component_name)
 
         # if we had to add any wrapper types on the fly, process them now
         for long_name in self.type_data.custom_types_to_add:
@@ -755,17 +770,22 @@ class BevySettings(bpy.types.PropertyGroup):
         # FIXME: feels a bit heavy duty, should only be done
         # if the components panel is active ?
         for object in bpy.data.objects:
-            add_metadata_to_components_without_metadata(object)
+            self.add_metadata_to_components_without_metadata(object)
 
-    
+    # adds metadata to object only if it is missing
+    def add_metadata_to_components_without_metadata(self, object):
+        for component_name in get_bevy_components(object) :
+            if component_name == "components_meta":
+                continue
+            self.upsert_component_in_object(object, component_name)
 
 
     # TODO: so this kinda blew my mind because not only does it recursively handle nested components, 
     # and all the different types, but ithen it generates __annotations__ which is a special class definition
     # system just for blender, and it does this by creating a new class with the type() function
     # becuase blender and python ...reasons and
-    def process_component(self, definition: TypeInfo, update, extras=None, nesting = [], nesting_long_names = []):
-        long_name = definition['long_name']
+    def process_component(self, definition: dict[str, Any], update, extras=None, nesting = [], nesting_long_names = []):
+        long_name = definition["long_name"]
         short_name = definition["short_name"]
         type_info = definition["typeInfo"] if "typeInfo" in definition else None
         type_def = definition["type"] if "type" in definition else None
@@ -789,12 +809,12 @@ class BevySettings(bpy.types.PropertyGroup):
 
 
         if has_properties:
-            __annotations__ = __annotations__ | self.process_structs(definition, properties, update, nesting, nesting_long_names)
+            __annotations__ = __annotations__ | self.process_structs(definition, update, properties, nesting, nesting_long_names)
             with_properties = True
             tupple_or_struct = "struct"
 
         if has_prefixItems:
-            __annotations__ = __annotations__ | self.process_tupples(definition, prefixItems, update, nesting, nesting_long_names)
+            __annotations__ = __annotations__ | self.process_tupples(definition, update, prefixItems, nesting, nesting_long_names)
             with_items = True
             tupple_or_struct = "tupple"
 
@@ -851,7 +871,6 @@ class BevySettings(bpy.types.PropertyGroup):
         
         return (property_group_pointer, property_group_class)
 
-
     def process_enum(self, definition: TypeInfo, update, nesting, nesting_long_names):
         short_name = definition["short_name"]
         long_name = definition["long_name"]
@@ -896,8 +915,8 @@ class BevySettings(bpy.types.PropertyGroup):
             blender_property = blender_property_def["type"](
                 **blender_property_def["presets"],# we inject presets first
                 items=items, # this is needed by Blender's EnumProperty , which we are using here
-                update= update
-    )
+                update=update
+            )
             __annotations__["selection"] = blender_property
 
             for a in additional_annotations:
@@ -910,13 +929,13 @@ class BevySettings(bpy.types.PropertyGroup):
             blender_property = blender_property_def["type"](
                 **blender_property_def["presets"],# we inject presets first
                 items=items,
-                update= update
+                update=update
             )
             __annotations__["selection"] = blender_property
         
         return __annotations__
 
-    def process_tupples(self, definition: TypeInfo, prefixItems, update, nesting=[], nesting_long_names=[]):
+    def process_tupples(self, definition: TypeInfo, update, prefixItems, nesting=[], nesting_long_names=[]):
         type_infos = self.type_data.type_infos
         long_name = definition["long_name"]
         short_name = definition["short_name"]
@@ -948,7 +967,7 @@ class BevySettings(bpy.types.PropertyGroup):
                             **blender_property_def["presets"],# we inject presets first
                             name = property_name, 
                             default=value,
-                            update= update
+                            update=update
                         )
                     
                         __annotations__[property_name] = blender_property
@@ -965,8 +984,6 @@ class BevySettings(bpy.types.PropertyGroup):
 
 
         return __annotations__
-
-
 
     def process_list(self, definition: TypeInfo, update, nesting=[], nesting_long_names=[]):
         
@@ -1002,7 +1019,7 @@ class BevySettings(bpy.types.PropertyGroup):
 
         return __annotations__
 
-    def process_structs(self, definition: TypeInfo, properties, update, nesting, nesting_long_names): 
+    def process_structs(self, definition: TypeInfo, update, properties, nesting, nesting_long_names): 
         type_infos = self.type_data.type_infos
         
         long_name = definition["long_name"]
@@ -1028,9 +1045,9 @@ class BevySettings(bpy.types.PropertyGroup):
                         blender_property_def = BLENDER_PROPERTY_MAPPING[original_long_name]
                         blender_property = blender_property_def["type"](
                             **blender_property_def["presets"],# we inject presets first
-                            name = property_name,
-                            default = value,
-                            update = update
+                            name= property_name,
+                            default= value,
+                            update= update,
                         )
                         __annotations__[property_name] = blender_property
                 else:
@@ -1047,8 +1064,7 @@ class BevySettings(bpy.types.PropertyGroup):
 
         return __annotations__
 
-
-    def process_map(self, definition, update, nesting=[], nesting_long_names=[]):
+    def process_map(self, definition: TypeInfo, update, nesting=[], nesting_long_names=[]):
         
         type_infos = self.type_data.type_infos
 
@@ -1130,7 +1146,441 @@ class BevySettings(bpy.types.PropertyGroup):
 
         return __annotations__
 
+    # adds a component to an object (including metadata) using the provided component definition & optional value
+    def add_component_to_object(self, object, long_name: str, value=None):
+        cleanup_invalid_metadata(object)
+        if object is not None:
+            # print("add_component_to_object", component_definition)            
+            
+            if not self.has_type_infos():
+                raise Exception('registry type infos have not been loaded yet or are missing !')            
+            definition = self.type_data.type_infos[long_name]
+            # now we use our pre_generated property groups to set the initial value of our custom property
+            (_, propertyGroup) = self.upsert_component_in_object(object, long_name=long_name)
+            if value == None:
+                value = self.property_group_value_to_custom_property_value(propertyGroup, definition, None)
+            else: # we have provided a value, that is a raw , custom property value, to set the value of the propertyGroup
+                object["__disable__update"] = True # disable update callback while we set the values of the propertyGroup "tree" (as a propertyGroup can contain other propertyGroups) 
+                self.property_group_value_from_custom_property_value(propertyGroup, definition, value)
+                del object["__disable__update"]
 
+            upsert_bevy_component(object, long_name, value)
+
+    def upsert_component_in_object(self, object, long_name: str):
+        # print("upsert_component_in_object", object, "component name", component_name)
+        # TODO: upsert this part too ?
+        target_components_metadata = object.components_meta.components
+        component_definition = self.type_data.type_infos.get(long_name, None)
+
+        if component_definition != None:
+            short_name = component_definition["short_name"]
+            long_name = component_definition["long_name"]
+            property_group_name = self.type_data.long_names_to_propgroup_names.get(long_name, None)
+            propertyGroup = None
+
+            component_meta = next(filter(lambda component: component["long_name"] == long_name, target_components_metadata), None)
+            if not component_meta:
+                component_meta = target_components_metadata.add()
+                component_meta.short_name = short_name
+                component_meta.long_name = long_name
+                propertyGroup = getattr(component_meta, property_group_name, None)
+            else: # this one has metadata but we check that the relevant property group is present
+                propertyGroup = getattr(component_meta, property_group_name, None)
+
+            # try to inject propertyGroup if not present
+            if propertyGroup == None:
+                #print("propertygroup not found in metadata attempting to inject")
+                if property_group_name in self.type_data.component_propertyGroups:
+                    # we have found a matching property_group, so try to inject it
+                    # now inject property group
+                    setattr(ComponentMetadata, property_group_name, self.type_data.component_propertyGroups[property_group_name]) # FIXME: not ideal as all ComponentMetadata get the propGroup, but have not found a way to assign it per instance
+                    propertyGroup = getattr(component_meta, property_group_name, None)
+            
+            # now deal with property groups details
+            if propertyGroup != None:
+                if long_name in self.type_data.invalid_components:
+                    component_meta.enabled = False
+                    component_meta.invalid = True
+                    component_meta.invalid_details = "component contains fields that are not in the registry, disabling"
+            else:
+                # if we still have not found the property group, mark it as invalid
+                component_meta.enabled = False
+                component_meta.invalid = True
+                component_meta.invalid_details = "component not present in the registry, possibly renamed? Disabling for now"
+            # property_group_value_from_custom_property_value(propertyGroup, component_definition, registry, object[component_name])
+
+            return (component_meta, propertyGroup)
+        else:
+            return(None, None)
+
+    #converts the value of a property group(no matter its complexity) into a single custom property value
+    # this is more or less a glorified "to_ron()" method (not quite but close to)
+    def property_group_value_to_custom_property_value(self, property_group, definition, parent=None, value=None):
+
+        long_name = definition["long_name"]
+        type_info = definition["typeInfo"] if "typeInfo" in definition else None
+        type_def = definition["type"] if "type" in definition else None
+        is_value_type = long_name in conversion_tables
+        # print("computing custom property: component name:", long_name, "type_info", type_info, "type_def", type_def, "value", value)
+
+        if is_value_type:
+            value = conversion_tables[long_name](value)
+        elif type_info == "Struct":
+            values = {}
+            if len(property_group.field_names) ==0:
+                value = '()'
+            else:
+                for index, field_name in enumerate(property_group.field_names):
+                    item_long_name = definition["properties"][field_name]["type"]["$ref"].replace("#/$defs/", "")
+                    item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                    value = getattr(property_group, field_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+                    if item_definition != None:
+                        value = self.property_group_value_to_custom_property_value(child_property_group, item_definition, parent=long_name, value=value)
+                    else:
+                        value = '""'
+                    values[field_name] = value
+                value = values        
+        elif type_info == "Tuple": 
+            values = {}
+            for index, field_name in enumerate(property_group.field_names):
+                item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
+                item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                value = getattr(property_group, field_name)
+                is_property_group = isinstance(value, PropertyGroup)
+                child_property_group = value if is_property_group else None
+                if item_definition != None:
+                    value = self.property_group_value_to_custom_property_value(child_property_group, item_definition, parent=long_name, value=value)
+                else:
+                    value = '""'
+                values[field_name] = value
+            value = tuple(e for e in list(values.values()))
+
+        elif type_info == "TupleStruct":
+            values = {}
+            for index, field_name in enumerate(property_group.field_names):
+                #print("toto", index, definition["prefixItems"][index]["type"]["$ref"])
+                item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
+                item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                value = getattr(property_group, field_name)
+                is_property_group = isinstance(value, PropertyGroup)
+                child_property_group = value if is_property_group else None
+                if item_definition != None:
+                    value = self.property_group_value_to_custom_property_value(child_property_group, item_definition, parent=long_name, value=value)
+                else:
+                    value = '""'
+                values[field_name] = value
+            
+            value = tuple(e for e in list(values.values()))
+        elif type_info == "Enum":
+            selected = getattr(property_group, "selection")
+            if type_def == "object":
+                selection_index = property_group.field_names.index("variant_"+selected)
+                variant_name = property_group.field_names[selection_index]
+                variant_definition = definition["oneOf"][selection_index-1]
+                if "prefixItems" in variant_definition:
+                    value = getattr(property_group, variant_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+
+                    value = self.property_group_value_to_custom_property_value(child_property_group, variant_definition, parent=long_name, value=value)
+                    value = selected + str(value,) #"{}{},".format(selected ,value)
+                elif "properties" in variant_definition:
+                    value = getattr(property_group, variant_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+
+                    value = self.property_group_value_to_custom_property_value(child_property_group, variant_definition, parent=long_name, value=value)
+                    value = selected + str(value,)
+                else:
+                    value = getattr(property_group, variant_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+                    if child_property_group:
+                        value = self.property_group_value_to_custom_property_value(child_property_group, variant_definition, parent=long_name, value=value)
+                        value = selected + str(value,)
+                    else:
+                        value = selected # here the value of the enum is just the name of the variant
+            else: 
+                value = selected
+
+        elif type_info == "List":
+            item_list = getattr(property_group, "list")
+            value = []
+            for item in item_list:
+                item_long_name = getattr(item, "long_name")
+                definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+                if definition != None:
+                    item_value = self.property_group_value_to_custom_property_value(item, definition, long_name, None)
+                    if item_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
+                        item_value = item_value[0]
+                else:
+                    item_value = '""'
+                value.append(item_value) 
+
+        elif type_info == "Map":
+            keys_list = getattr(property_group, "list", {})
+            values_list = getattr(property_group, "values_list")
+            value = {}
+            for index, key in enumerate(keys_list):
+                # first get the keys
+                key_long_name = getattr(key, "long_name")
+                definition = self.type_data.type_infos[key_long_name] if key_long_name in self.type_data.type_infos else None
+                if definition != None:
+                    key_value = self.property_group_value_to_custom_property_value(key, definition, long_name, None)
+                    if key_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
+                        key_value = key_value[0]
+                else:
+                    key_value = '""'
+                # and then the values
+                val = values_list[index]
+                value_long_name = getattr(val, "long_name")
+                definition = self.type_data.type_infos[value_long_name] if value_long_name in self.type_data.type_infos else None
+                if definition != None:
+                    val_value = self.property_group_value_to_custom_property_value(val, definition, long_name, None)
+                    if value_long_name.startswith("wrapper_"): #if we have a "fake" tupple for aka for value types, we need to remove one nested level
+                        val_value = val_value[0]
+                else:
+                    val_value = '""'
+
+                value[key_value] = val_value
+            value = str(value).replace('{','@').replace('}','²') # FIXME: eeek !!
+        else:
+            value = conversion_tables[long_name](value) if is_value_type else value
+            value = '""' if isinstance(value, PropertyGroup) else value
+            
+        #print("generating custom property value", value, type(value))
+        if isinstance(value, str):
+            value = value.replace("'", "")
+
+        if parent == None:
+            value = str(value).replace("'",  "")
+            value = value.replace(",)",")")
+            value = value.replace("{", "(").replace("}", ")") # FIXME: deal with hashmaps
+            value = value.replace("True", "true").replace("False", "false")
+            value = value.replace('@', '{').replace('²', '}')
+        return value
+
+    #converts the value of a single custom property into a value (values) of a property group 
+    def property_group_value_from_custom_property_value(self, property_group, definition, value, nesting = []):
+            
+        type_info = definition["typeInfo"] if "typeInfo" in definition else None
+        type_def = definition["type"] if "type" in definition else None
+        properties = definition["properties"] if "properties" in definition else {}
+        prefixItems = definition["prefixItems"] if "prefixItems" in definition else []
+        long_name = definition["long_name"]
+        
+        is_value_type = long_name in VALUE_TYPES_DEFAULTS
+        nesting = nesting + [definition["short_name"]]
+
+        if is_value_type:
+            value = value.replace("(", "").replace(")", "")# FIXME: temporary, incoherent use of nesting levels between parse_tuplestruct_string & parse_struct_string
+            value = type_mappings[long_name](value) if long_name in type_mappings else value
+            return value
+        elif type_info == "Struct":
+            if len(property_group.field_names) != 0 :
+                custom_property_values = parse_struct_string(value, start_nesting=1 if value.startswith("(") else 0)
+                for index, field_name in enumerate(property_group.field_names):
+                    item_long_name = definition["properties"][field_name]["type"]["$ref"].replace("#/$defs/", "")
+                    item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                    custom_prop_value = custom_property_values[field_name]
+                    #print("field name", field_name, "value", custom_prop_value)
+                    propGroup_value = getattr(property_group, field_name)
+                    is_property_group = isinstance(propGroup_value, PropertyGroup)
+                    child_property_group = propGroup_value if is_property_group else None
+                    if item_definition != None:
+                        custom_prop_value = self.property_group_value_from_custom_property_value(child_property_group, item_definition, value=custom_prop_value, nesting=nesting)
+                    else:
+                        custom_prop_value = custom_prop_value
+
+                    if is_def_value_type(item_definition):
+                        setattr(property_group , field_name, custom_prop_value)
+                
+
+            else:
+                if len(value) > 2: #a unit struct should be two chars long :()
+                    #print("struct with zero fields")
+                    raise Exception("input string too big for a unit struct")
+
+        elif type_info == "Tuple": 
+            custom_property_values = parse_tuplestruct_string(value, start_nesting=1 if len(nesting) == 1 else 1)
+
+            for index, field_name in enumerate(property_group.field_names):
+                item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
+                item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+                
+                custom_property_value = custom_property_values[index]
+
+                propGroup_value = getattr(property_group, field_name)
+                is_property_group = isinstance(propGroup_value, PropertyGroup)
+                child_property_group = propGroup_value if is_property_group else None
+                if item_definition != None:
+                    custom_property_value = self.property_group_value_from_custom_property_value(child_property_group, item_definition, value=custom_property_value, nesting=nesting)
+                if is_def_value_type(item_definition):
+                    setattr(property_group , field_name, custom_property_value)
+
+        elif type_info == "TupleStruct":
+            custom_property_values = parse_tuplestruct_string(value, start_nesting=1 if len(nesting) == 1 else 0)
+            for index, field_name in enumerate(property_group.field_names):
+                item_long_name = definition["prefixItems"][index]["type"]["$ref"].replace("#/$defs/", "")
+                item_definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                custom_prop_value = custom_property_values[index]
+
+                value = getattr(property_group, field_name)
+                is_property_group = isinstance(value, PropertyGroup)
+                child_property_group = value if is_property_group else None
+                if item_definition != None:
+                    custom_prop_value = self.property_group_value_from_custom_property_value(child_property_group, item_definition, value=custom_prop_value, nesting=nesting)
+
+                if is_def_value_type(item_definition):
+                        setattr(property_group , field_name, custom_prop_value)
+
+        elif type_info == "Enum":
+            field_names = property_group.field_names
+            if type_def == "object":
+                regexp = re.search('(^[^\(]+)(\((.*)\))', value)
+                try:
+                    chosen_variant_raw = regexp.group(1)
+                    chosen_variant_value = regexp.group(3)
+                    chosen_variant_name = "variant_" + chosen_variant_raw 
+                except:
+                    chosen_variant_raw = value
+                    chosen_variant_value = ""
+                    chosen_variant_name = "variant_" + chosen_variant_raw 
+                selection_index = property_group.field_names.index(chosen_variant_name)
+                variant_definition = definition["oneOf"][selection_index-1]
+                # first we set WHAT variant is selected
+                setattr(property_group, "selection", chosen_variant_raw)
+
+                # and then we set the value of the variant
+                if "prefixItems" in variant_definition:
+                    value = getattr(property_group, chosen_variant_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+                    
+                    chosen_variant_value = "(" +chosen_variant_value +")" # needed to handle nesting correctly
+                    value = self.property_group_value_from_custom_property_value(child_property_group, variant_definition, value=chosen_variant_value, nesting=nesting)
+                    
+                elif "properties" in variant_definition:
+                    value = getattr(property_group, chosen_variant_name)
+                    is_property_group = isinstance(value, PropertyGroup)
+                    child_property_group = value if is_property_group else None
+
+                    value = self.property_group_value_from_custom_property_value(child_property_group, variant_definition, value=chosen_variant_value, nesting=nesting)
+                    
+            else:
+                chosen_variant_raw = value
+                setattr(property_group, field_names[0], chosen_variant_raw)
+
+        elif type_info == "List":
+            item_list = getattr(property_group, "list")
+            item_long_name = getattr(property_group, "long_name")
+            custom_property_values = parse_tuplestruct_string(value, start_nesting=2 if item_long_name.startswith("wrapper_") and value.startswith('(') else 1) # TODO : the additional check here is wrong, there is an issue somewhere in higher level stuff
+            # clear list first
+            item_list.clear()
+            for raw_value in custom_property_values:
+                new_entry = item_list.add()   
+                item_long_name = getattr(new_entry, "long_name") # we get the REAL type name
+                definition = self.type_data.type_infos[item_long_name] if item_long_name in self.type_data.type_infos else None
+
+                if definition != None:
+                    self.property_group_value_from_custom_property_value(new_entry, definition, value=raw_value, nesting=nesting)            
+        else:
+            try:
+                value = value.replace("(", "").replace(")", "")# FIXME: temporary, incoherent use of nesting levels between parse_tuplestruct_string & parse_struct_string
+                value = type_mappings[long_name](value) if long_name in type_mappings else value
+                return value
+            except:
+                pass
+
+    def copy_propertyGroup_values_to_another_object(self, source_object, target_object, component_name):
+        if source_object == None or target_object == None or component_name == None:
+            raise Exception('missing input data, cannot copy component propertryGroup')
+        
+        component_definition = self.type_data.type_infos.get(component_name, None)
+        long_name = component_name
+        property_group_name = self.type_data.long_names_to_propgroup_names.get(long_name, None)
+
+        source_components_metadata = source_object.components_meta.components
+        source_componentMeta = next(filter(lambda component: component["long_name"] == long_name, source_components_metadata), None)
+        # matching component means we already have this type of component 
+        source_propertyGroup = getattr(source_componentMeta, property_group_name)
+
+        # now deal with the target object
+        (_, target_propertyGroup) = self.upsert_component_in_object(target_object, component_name)
+        # add to object
+        value = self.property_group_value_to_custom_property_value(target_propertyGroup, component_definition, None)
+        upsert_bevy_component(target_object, long_name, value)
+
+        # copy the values over 
+        for field_name in source_propertyGroup.field_names:
+            if field_name in source_propertyGroup:
+                target_propertyGroup[field_name] = source_propertyGroup[field_name]
+        self.apply_propertyGroup_values_to_object_customProperties(target_object)
+
+    def apply_propertyGroup_values_to_object_customProperties(self, object):
+        cleanup_invalid_metadata(object)
+        for component_name in get_bevy_components(object) :            
+            (_, propertyGroup) =  self.upsert_component_in_object(object, component_name)
+            component_definition = self.type_data.type_infos.get(component_name, None)
+            if component_definition != None:
+                value = self.property_group_value_to_custom_property_value(propertyGroup, component_definition, None)
+                upsert_bevy_component(object=object, long_name=component_name, value=value)
+
+    # apply component value(s) to custom property of a single component
+    def apply_propertyGroup_values_to_object_customProperties_for_component(self, object, component_name):
+        
+        (_, propertyGroup) = self.upsert_component_in_object(object, component_name)
+        component_definition = self.type_data.type_infos.get(component_name, None)
+        if component_definition != None:
+            value = self.property_group_value_to_custom_property_value(propertyGroup, component_definition, None)
+            object[component_name] = value
+        
+        components_metadata = object.components_meta.components
+        componentMeta = next(filter(lambda component: component["long_name"] == component_name, components_metadata), None)
+        if componentMeta:
+            componentMeta.invalid = False
+            componentMeta.invalid_details = ""
+
+    def apply_customProperty_values_to_object_propertyGroups(self, object):
+        print("apply custom properties to ", object.name)
+        
+        for component_name in get_bevy_components(object) :
+            if component_name == "components_meta":
+                continue
+            component_definition = self.type_data.type_infos.get(component_name, None)
+            if component_definition != None:
+                property_group_name = self.type_data.long_names_to_propgroup_names.get(component_name, None)
+                components_metadata = object.components_meta.components
+                source_componentMeta = next(filter(lambda component: component["long_name"] == component_name, components_metadata), None)
+                # matching component means we already have this type of component 
+                propertyGroup = getattr(source_componentMeta, property_group_name, None)
+                customProperty_value = get_bevy_component_value_by_long_name(object, component_name)
+                #value = property_group_value_to_custom_property_value(propertyGroup, component_definition, registry, None)
+                
+                object["__disable__update"] = True # disable update callback while we set the values of the propertyGroup "tree" (as a propertyGroup can contain other propertyGroups) 
+                self.property_group_value_from_custom_property_value(propertyGroup, component_definition, customProperty_value)
+                del object["__disable__update"]
+                source_componentMeta.invalid = False
+                source_componentMeta.invalid_details = ""
+
+    def add_component_from_custom_property(self, object):
+        self.add_metadata_to_components_without_metadata(object)
+        self.apply_customProperty_values_to_object_propertyGroups(object)
+
+    def rename_component(self, object, original_long_name: str, new_long_name: str):        
+        component_ron_value = get_bevy_component_value_by_long_name(object=object, long_name=original_long_name)
+        if component_ron_value is None and original_long_name in object:
+            component_ron_value = object[original_long_name]
+
+        remove_component_from_object(object, original_long_name)
+        self.add_component_to_object(object, new_long_name, component_ron_value)
 
     # this helper creates a "fake"/wrapper property group that is NOT a real type in the registry
     # usefull for things like value types in list items etc
@@ -1181,6 +1631,7 @@ class BevySettings(bpy.types.PropertyGroup):
             **dict(with_properties = False, with_items= True, with_enum= False, with_list= False, with_map =False, short_name=wrapper_name, long_name=wrapper_name),
         }
         property_group_class = type(property_group_name, (PropertyGroup,), property_group_params)
+        #print(f"property_group_class: {property_group_name} - {property_group_class}")
         bpy.utils.register_class(property_group_class)
 
         return property_group_class
@@ -1295,6 +1746,7 @@ class BevySettings(bpy.types.PropertyGroup):
             
             # we copy custom properties over from our original object to our empty
             for component_name, component_value in object.items():
+                print(f"{original_name} - {component_name}: {component_value}")
                 if component_name not in custom_properties_to_filter_out and is_component_valid_and_enabled(object, component_name): #copy only valid properties
                     empty_obj[component_name] = component_value
             copy = empty_obj
@@ -1457,7 +1909,8 @@ class BevySettings(bpy.types.PropertyGroup):
 
     # export the scenes, blueprints, materials etc
     def export(self, changes_per_scene, changed_export_parameters):
-        
+        start = time.time()
+
         self.create_dirs()
         [level_scene_names, level_scenes, library_scene_names, library_scenes] = self.get_scenes()
 
@@ -1532,14 +1985,10 @@ class BevySettings(bpy.types.PropertyGroup):
             bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
             print("-------------------------------")
-            print("BLUEPRINTS:    local/internal:", [blueprint.name for blueprint in self.data.internal_blueprints])
-            #print("BLUEPRINTS:          external:", [blueprint.name for blueprint in self.data.external_blueprints])
-            #print("BLUEPRINTS:         per_scene:", self.data.blueprints_per_scenes)
-            #print("-------------------------------")
-            #print("BLUEPRINTS:         to export:", [blueprint.name for blueprint in blueprints_to_export])
-            print("-------------------------------")
-            print("LEVELS:             to export:", levels_to_export)
-            print("-------------------------------")
+            print("BLUEPRINTS:  ", len(self.data.internal_blueprints))
+            #print("BLUEPRINTS:          external:", [blueprint.name for blueprint in self.data.external_blueprints])                
+            print("LEVELS:      ", len(levels_to_export))
+            print("")
             # backup current active scene
             old_current_scene = bpy.context.scene
             # backup current selections
@@ -1563,18 +2012,8 @@ class BevySettings(bpy.types.PropertyGroup):
             for obj in old_selections:
                 obj.select_set(True)
         
-            # Clear the material info from the objects        
-            # for scene in library_scenes:
-            #     root_collection = scene.collection
-            #     for cur_collection in traverse_tree(root_collection):
-            #         if cur_collection.name in self.data.blueprint_names:
-            #             for object in cur_collection.all_objects:
-            #                 if 'MaterialInfo' in dict(object): # FIXME: hasattr does not work ????
-            #                     del object["MaterialInfo"]
-
-            # else:
-            #     for scene_name in level_scene_names:
-            #         self.export_level_scene(bpy.data.scenes[scene_name])
+            end = time.time()
+            print(f"Export time: {end - start:.2f}s")         
 
         except Exception as error:
             print(traceback.format_exc())
@@ -1707,3 +2146,5 @@ class BevySettings(bpy.types.PropertyGroup):
         # reset mode
         if original_mode != None:
             bpy.ops.object.mode_set( mode = original_mode )
+
+

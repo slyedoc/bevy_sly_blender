@@ -10,8 +10,8 @@ class OT_switch_bevy_tooling(bpy.types.Operator):
     tool: EnumProperty(
             items=(
                 ('COMPONENTS', "Components", "Switch to components"),
-                ('BLUEPRINTS', "Blueprints", ""),
-                ('ASSETS', "Assets", ""),
+                #('BLUEPRINTS', "Blueprints", ""),
+                #('ASSETS', "Assets", ""),
                 ('SETTINGS', "Settings", ""),
                 ('TOOLS', "Tools", ""),
                 )

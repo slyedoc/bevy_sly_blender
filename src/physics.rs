@@ -30,7 +30,7 @@ pub enum ProxyCollider {
 
 pub(super) fn plugin(app: &mut App) {
     app.register_type::<ProxyCollider>().add_systems(
-        PostUpdate,
+        Update,
         (physics_replace_proxies)
             .after(TransformSystem::TransformPropagate)
             .after(GltfBlueprintsSet::Spawn),
@@ -42,7 +42,7 @@ fn physics_replace_proxies(
     meshes: Res<Assets<Mesh>>,
     mesh_handles: Query<&Handle<Mesh>>,
     mut proxy_colliders: Query<
-        (Entity, &ProxyCollider, &Name),
+        (Entity, &ProxyCollider, Option<&Name>,),
         (Without<Collider>, Added<ProxyCollider>),
     >,
     // needed for tri meshes
@@ -50,9 +50,10 @@ fn physics_replace_proxies(
     global_transforms: Query<&GlobalTransform>,
     mut commands: Commands,
 ) {
-    for proxy_colider in proxy_colliders.iter_mut() {
-        let (entity, collider_proxy, name) = proxy_colider;
-        dbg!(name, collider_proxy);
+    
+    for (entity, collider_proxy, name_maybe) in proxy_colliders.iter_mut() {
+        let msg = format!("generating collider from proxy on {:?}: {:?}", name_maybe, collider_proxy);
+        dbg!(msg);
         match collider_proxy {
             ProxyCollider::Ball(radius) => {
                 commands.entity(entity)

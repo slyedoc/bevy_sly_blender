@@ -13,7 +13,10 @@ pub fn ronstring_to_reflect_component(
 ) -> Vec<(Box<dyn Reflect>, TypeRegistration)> {
     let lookup: HashMap<String, Value> = ron::from_str(ron_string).unwrap();
     let mut components: Vec<(Box<dyn Reflect>, TypeRegistration)> = Vec::new();
-    // println!("ron_string {:?}", ron_string);
+    if ron_string.contains("bevy_components") {        
+        dbg!(ron_string);
+    }
+    
     for (name, value) in lookup.into_iter() {
         let parsed_value: String = match value.clone() {
             Value::String(str) => {

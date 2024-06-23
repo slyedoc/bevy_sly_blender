@@ -228,12 +228,12 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
         def mode_icon(mode):
             match mode:
-                case "ASSETS":
-                    return "ASSET_MANAGER"
+                #case "ASSETS":
+                #    return "ASSET_MANAGER"
                 case "COMPONENTS":
                     return "PROPERTIES"
-                case "BLUEPRINTS":
-                    return "PACKAGE"
+                #case "BLUEPRINTS":
+                #    return "PACKAGE"
                 case "SETTINGS":
                     return "SETTINGS"
                 case "TOOLS":
@@ -306,6 +306,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                     # load component ui's
                     missing_metadata = True               
+                    
                     components_metadata = getattr(context.object, "components_meta", None)
                     if components_metadata:                                            
                         for component_name in get_bevy_components(context.object) :
@@ -354,18 +355,19 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                         # we fetch the matching ui property group
                         root_propertyGroup_name =  bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
-                        """print("root_propertyGroup_name", root_propertyGroup_name)"""
-                        print("component_meta", component_meta, component_invalid)
+                        
+                        #print("component_meta", component_meta, component_invalid)
 
                         if root_propertyGroup_name:
-                            propertyGroup = getattr(component_meta, root_propertyGroup_name, None)
-                            """print("propertyGroup", propertyGroup)"""
+                            propertyGroup = getattr(component_meta, root_propertyGroup_name, None)                            
                             if propertyGroup:
                                 # if the component has only 0 or 1 field names, display inline, otherwise change layout
                                 single_field = len(propertyGroup.field_names) < 2
-                                prop_group_location = box.row(align=True).column()
-                                """if single_field:
+                                
+                                if single_field:
                                     prop_group_location = row.column(align=True)#.split(factor=0.9)#layout.row(align=False)"""
+                                else:
+                                    prop_group_location = box.row(align=True).column()
                                 
                                 if component_visible:
                                     if component_invalid:
@@ -406,27 +408,27 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                 else: 
                     layout.label(text ="Select an object to edit its components")
-            case "BLUEPRINTS":        
-                for blueprint in bevy.blueprints_list:
+            # case "BLUEPRINTS":        
+            #     for blueprint in bevy.blueprints_list:
 
-                    row.label(icon="RIGHTARROW")
-                    row.label(text=blueprint.name)
+            #         row.label(icon="RIGHTARROW")
+            #         row.label(text=blueprint.name)
 
-                    if blueprint.local:
+            #         if blueprint.local:
                         
-                        select_blueprint = row.operator(operator="blueprint.select", text="", icon="RESTRICT_SELECT_OFF")
+            #             select_blueprint = row.operator(operator="blueprint.select", text="", icon="RESTRICT_SELECT_OFF")
                         
-                        if blueprint.collection and blueprint.collection.name:
-                            select_blueprint.blueprint_collection_name = blueprint.collection.name
-                        select_blueprint.blueprint_scene_name = blueprint.scene.name
+            #             if blueprint.collection and blueprint.collection.name:
+            #                 select_blueprint.blueprint_collection_name = blueprint.collection.name
+            #             select_blueprint.blueprint_scene_name = blueprint.scene.name
 
-                        #user_assets = getattr(blueprint.collection, 'user_assets', [])
-                        #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
+            #             #user_assets = getattr(blueprint.collection, 'user_assets', [])
+            #             #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
 
-                    else:
-                        #user_assets = getattr(blueprint.collection, 'user_assets', [])
-                        #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
-                        row.label(text="External")
+            #         else:
+            #             #user_assets = getattr(blueprint.collection, 'user_assets', [])
+            #             #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
+            #             row.label(text="External")
 
             case "SETTINGS":
                 # header, panel = layout.panel("common", default_closed=False)

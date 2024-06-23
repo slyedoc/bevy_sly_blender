@@ -2,8 +2,6 @@ import json
 from bpy_types import Operator
 from bpy.props import (StringProperty, EnumProperty, PointerProperty, FloatVectorProperty, IntProperty)
 
-from ..propGroups.conversions_from_prop_group import property_group_value_to_custom_property_value
-
 class GENERIC_MAP_OT_actions(Operator):
     """Move items up and down, add and remove"""
     bl_idname = "generic_map.map_action"

@@ -7,7 +7,6 @@ from bpy.props import (StringProperty)
 
 from ..settings import BevySettings
 
-from ..components_meta import add_component_to_object
 
 class AddComponentOperator(Operator):
     """Add Bevy component to object"""
@@ -27,8 +26,7 @@ class AddComponentOperator(Operator):
     
         has_component_type = self.component_type != ""
 
-        if has_component_type and object != None:
-            component_definition = bevy.type_data.type_infos[self.component_type]
-            add_component_to_object(object, component_definition)
+        if has_component_type and object != None:            
+            bevy.add_component_to_object(object, self.component_type)
 
         return {'FINISHED'}

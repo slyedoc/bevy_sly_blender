@@ -1,7 +1,8 @@
 
 import bpy
 from bpy.props import (StringProperty)
-from ..components_meta import add_component_from_custom_property
+
+from ..settings import BevySettings
 
 class GenerateComponent_From_custom_property_Operator(bpy.types.Operator):
     """Generate Bevy components from custom property"""
@@ -16,10 +17,11 @@ class GenerateComponent_From_custom_property_Operator(bpy.types.Operator):
 
     def execute(self, context):
         object = context.object
+        bevy = context.window_manager.bevy # type: BevySettings
 
         error = False
         try:
-            add_component_from_custom_property(object)
+            bevy.add_component_from_custom_property(object)
         except Exception as error:
             del object["__disable__update"] # make sure custom properties are updateable afterwards, even in the case of failure
             error = True

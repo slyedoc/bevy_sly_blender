@@ -1,7 +1,7 @@
 use bevy::pbr::DirectionalLightShadowMap;
 use bevy::prelude::*;
 
-use crate::GltfBlueprintsSet;
+use crate::BlenderSet;
 
 
 pub(crate) fn plugin(app: &mut App) {
@@ -11,7 +11,7 @@ pub(crate) fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (process_lights, process_shadowmap, process_background_shader)
-                .after(GltfBlueprintsSet::Injection),
+                .after(BlenderSet::Injection),
         );
 }
 

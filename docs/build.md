@@ -13,7 +13,7 @@ commands.spawn((
 
 // into this
 commands.spawn((
-    Blueprint::Menu, // yes plz
+    Blueprint::Menu, // Yay
     Transform::from_xyz(0.0, 0.0, 0.0),
 ));
 
@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn write_enum(f: &mut fs::File, enum_name: &str, dir_path: &Path, project_root: &PathBuf) -> io::Result<()> {
+fn write_enum(f: &mut fs::File, enum_name: &str, dir_path: &Path, project_root: &PathBuf) -> io::Result<()> {    
     write!(f, "#[derive(Debug, Default, Component, States, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect, EnumIter)]\n")?;
     write!(f, "#[reflect(Default, Serialize, Deserialize)]\n")?;
     write!(f, "pub enum {} {{\n", enum_name)?;
@@ -172,51 +172,17 @@ pub fn spawn(
     blender_assets: Res<BlenderAssets>,
 ) {
     for (e, b) in blueprints.iter() {
-        commands
-            .entity(e)
-            .insert(BlueprintGltf(b.get_gltf(&blender_assets)));
-    }
-
-    for (e, l) in levels.iter() {
-        commands.add(SpawnLevel::<InPlaying> {
-            handle: l.get_gltf(&blender_assets),
-            root: Some(e),
-            ..default()
-        });
+        commands.entity(e).insert(BlueprintGltf(
+            blender_assets.blueprints.get(&b.path()).unwrap().clone(),
+        ));
     }
 }
 
-impl std::fmt::Display for Level {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::fmt::Display for Blueprint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl Level {
-    pub fn get_gltf(&self, assets: &BlenderAssets) -> Handle<Gltf> {
-        let path = self.path();
-        assets.levels.get(&path).unwrap().clone()
-    }
-}
-
-impl Blueprint {
-    pub fn get_gltf(&self, assets: &BlenderAssets) -> Handle<Gltf> {
-        let path = self.path();
-        assets.blueprints.get(&path).unwrap().clone()
-    }
-}
 ```
 
-Now everytime you build your project cargo will look thought your assets directory and create enums based on the *.glb files it finds there.
+Now every time you build your project cargo will look thought your assets directory and create enums based on the *.glb files it finds there.
 
 ## Notes
 
 - This has been useful for when I have blueprints names that conflict with each other, you get compile errors about duplicate enum value you know exactly which it is.
-- I have serveral derives that you may not need.
-- Look at macros for this
+- Bet there is a better way to do this

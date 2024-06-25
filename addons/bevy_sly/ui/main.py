@@ -6,6 +6,8 @@ import bpy
 import json
 from types import SimpleNamespace
 
+from ..operators.edit_collection import ExitCollectionInstance
+
 from ..ui.scene_list import SCENE_UL_Bevy, SCENES_LIST_OT_actions
 
 from ..operators.copy_component import CopyComponentOperator
@@ -225,6 +227,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         remove_components_progress = context.window_manager.components_remove_progress # type: float
         
         selected_object = context.selected_objects[0] if len(context.selected_objects) > 0 else None
+        active_scene = context.scene.name
 
         def mode_icon(mode):
             match mode:
@@ -248,7 +251,15 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             target = row.box() if mode == bevy.mode else row
             tool_switch_components = target.operator(OT_switch_bevy_tooling.bl_idname, text="", icon=icon)
             tool_switch_components.tool = mode
-      
+        
+        if active_scene.startswith("temp:"):
+            row = layout.row()
+            row.label(text="Delete Temp Scene")
+            row.operator(ExitCollectionInstance.bl_idname, text="Delete Temp Scene" , icon="X")
+
+
+
+
         # Tabs
         row = layout.row()
         match bevy.mode:
@@ -362,12 +373,12 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                             propertyGroup = getattr(component_meta, root_propertyGroup_name, None)                            
                             if propertyGroup:
                                 # if the component has only 0 or 1 field names, display inline, otherwise change layout
-                                single_field = len(propertyGroup.field_names) < 2
+                                #single_field = len(propertyGroup.field_names) < 2
                                 
-                                if single_field:
-                                    prop_group_location = row.column(align=True)#.split(factor=0.9)#layout.row(align=False)"""
-                                else:
-                                    prop_group_location = box.row(align=True).column()
+                                # if single_field:
+                                #     prop_group_location = row.column(align=True)#.split(factor=0.9)#layout.row(align=False)"""
+                                # else:
+                                prop_group_location = box.row(align=True).column()
                                 
                                 if component_visible:
                                     if component_invalid:

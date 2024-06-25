@@ -24,7 +24,6 @@ BLUEPRINTS_PATH = "blueprints"
 LEVELS_PATH = "levels"
 MATERIALS_PATH = "materials"
 
-
 BLENDER_PROPERTY_MAPPING = {
     "bool": dict(type=BoolProperty, presets=dict()),
 

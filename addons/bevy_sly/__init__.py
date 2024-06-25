@@ -42,6 +42,7 @@ from .operators.select_component_to_replace import OT_select_component_name_to_r
 from .operators.select_object import OT_select_object
 from .operators.toggle_component_visibility import Toggle_ComponentVisibility
 from .operators.tooling_switch import OT_switch_bevy_tooling
+from .operators.edit_collection import EditCollectionInstance, ExitCollectionInstance, edit_collection_menu
 
 # data
 from .settings import BevySettings, SceneSelector, RegistryType, MissingBevyType, watch_registry
@@ -49,6 +50,8 @@ from .component_definitions_list import ComponentDefinitionsList
 from .rename_helper import RenameHelper
 from .components_meta import (ComponentMetadata, ComponentsMeta)
 from .auto_export_tracker import AutoExportTracker
+
+addon_keymaps = []
 
 classes = [
     # helpers
@@ -101,6 +104,8 @@ classes = [
     OT_select_object,
     Toggle_ComponentVisibility,
     OT_switch_bevy_tooling,
+    EditCollectionInstance,
+    ExitCollectionInstance,
 ]
 
 # Called when basiclly anything changes
@@ -164,6 +169,16 @@ def register():
     bpy.app.handlers.depsgraph_update_post.append(post_update)
     bpy.app.handlers.save_post.append(post_save)
 
+    bpy.types.VIEW3D_MT_object.append(edit_collection_menu)
+    bpy.types.VIEW3D_MT_object_context_menu.append(edit_collection_menu)
+
+    wm = bpy.context.window_manager
+    if wm.keyconfigs.addon:
+        km = wm.keyconfigs.addon.keymaps.new(name="Object Mode", space_type="EMPTY")
+        kmi = km.keymap_items.new(EditCollectionInstance.bl_idname, "C", "PRESS", ctrl=True, alt=True)
+        # kmi.properties.total = 4
+        addon_keymaps.append((km, kmi))
+
 def unregister():
     for cls in reversed(classes):
         try:
@@ -207,6 +222,15 @@ def unregister():
     bpy.app.handlers.load_post.remove(post_load)
     bpy.app.handlers.depsgraph_update_post.remove(post_update)
     bpy.app.handlers.save_post.remove(post_save)
+
+    # Remove menu items
+    bpy.types.VIEW3D_MT_object.remove(edit_collection_menu)
+    bpy.types.VIEW3D_MT_object_context_menu.remove(edit_collection_menu)
+
+    # Clear keymaps
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
 
 if __name__ == "__main__":
     register()

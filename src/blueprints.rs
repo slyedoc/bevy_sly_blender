@@ -3,6 +3,8 @@ use bevy::{
     gltf::{Gltf, GltfExtras},
     prelude::*,
 };
+#[cfg(feature = "physics")]
+use bevy_xpbd_3d::plugins::collision::ColliderParent;
 use core::panic;
 use std::any::TypeId;
 
@@ -117,9 +119,9 @@ impl Command for SpawnBlueprint {
             let type_registry = world.resource::<AppTypeRegistry>().clone();
             let type_registry = type_registry.read();
 
-            // TODO: Haven't seen any use of resources in blueprints yet            
+            // TODO: Haven't seen any use of resources in blueprints yet
             for (_component_id, _resource_data) in scene.world.storages().resources.iter() {
-                panic!("Is this used?");
+                panic!("What used this?");
                 //     dbg!(&component_id);
                 //     if !resource_data.is_present() {
                 //         continue;
@@ -188,8 +190,8 @@ impl Command for SpawnBlueprint {
                                 assert!(children.iter().len() == 1);
                             }
                             if type_id == TypeId::of::<GltfExtras>() {
-                                panic!("GltfExtras should have been copied to the app world");    
-                            }                          
+                                panic!("GltfExtras should have been copied to the app world");
+                            }
                             continue;
                         }
 
@@ -198,6 +200,14 @@ impl Command for SpawnBlueprint {
                         let entity = entity_map
                             .entry(scene_entity.id())
                             .or_insert_with(|| world.spawn_empty().id());
+
+                        // dont overwrite the parent
+                        #[cfg(feature = "physics")]
+                        if type_id == TypeId::of::<ColliderParent>() {
+                            error!("Parent should have been fixed");
+                        }
+
+                        
 
                         if e == SCENE_NEW_ROOT {
                             // copy components from root entity except the following
@@ -210,6 +220,8 @@ impl Command for SpawnBlueprint {
                             if type_id == TypeId::of::<Parent>() {
                                 continue;
                             }
+
+                            
 
                             // apply the root entity's transform to existing entity
                             // but dont copy it
@@ -226,14 +238,13 @@ impl Command for SpawnBlueprint {
                                         panic!("Failed to get transform for entity {:?}", name)
                                     });
 
-                                // let data = format!(
-                                //     "name: {:?}: scene scale:{:?}",
-                                //     name, scene_trans.scale
-                                // );
-                                // dbg!(data);
-                                trans.translation += scene_trans.translation;
-                                trans.rotation *= scene_trans.rotation;
-                                trans.scale *= scene_trans.scale;
+                                let new_trans =  trans.mul_transform(scene_trans);
+                                if name.contains("Mother") {
+                                    error!("name: {:?}: existing: {:?}, scene: {:?}, new: {:?}", name, trans, scene_trans, new_trans);
+                                }
+                                
+                                *trans = new_trans;
+
                                 continue;
                             }
                         }
@@ -259,12 +270,12 @@ impl Command for SpawnBlueprint {
             }
 
             // TODO: still not happy with this
-            // Fix Parenting, we cached the correct parent entity at the start
             // info!(
             //     "parent: {:?}, current_parent: {:?}, fixing",
             //     parent,
             //     world.entity(self.root).get::<Parent>().unwrap().get()
             // );
+            // Fix Parenting, we cached the correct parent entity at the start
             if let Some(p) = parent {
                 world.entity_mut(self.root).set_parent(p);
             }

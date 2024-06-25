@@ -17,11 +17,15 @@ pub use levels::*;
 #[cfg(feature = "physics")]
 pub mod physics;
 
+//[cfg(feature = "physics")]
+//pub use physics::*;
+
 #[cfg(feature = "registry")]
 pub mod registry;
-use physics::ProxyCollider;
+
 #[cfg(feature = "registry")]
 pub use registry::*;
+
 
 pub mod animation;
 pub use animation::*;
@@ -30,7 +34,7 @@ use core::fmt;
 use std::path::PathBuf;
 
 use bevy::{
-    gltf::GltfExtras, prelude::*, render::primitives::Aabb, transform::TransformSystem,
+    gltf::GltfExtras, prelude::*, render::primitives::Aabb,
     utils::HashMap,
 };
 
@@ -39,7 +43,7 @@ pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, GltfBlueprintsSet,
+        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet,
         GltfFormat,
     };
 
@@ -49,10 +53,9 @@ pub mod prelude {
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 /// set for the two stages of blueprint based spawning :
-pub enum GltfBlueprintsSet {
-    Injection,
+pub enum BlenderSet {    
     Spawn,
-    Extras,
+    Injection,
 }
 
 #[derive(Debug, Clone)]
@@ -161,50 +164,49 @@ impl Plugin for BlenderPlugin {
         .configure_sets(
             Update,
             (
-                GltfBlueprintsSet::Injection,
-                GltfBlueprintsSet::Spawn,
-                GltfBlueprintsSet::Extras,
+                // TODO: These Two are reversed right now form what I intended
+                // Was having issue where ProxyCollider::Mesh doesnt see all children unless it runs next frame                
+                BlenderSet::Injection,                                
+                BlenderSet::Spawn,
             )
                 .chain(),
         )
+        // going for loading a level and its blueprints, and extras in 1 frame, 
+        // and another frame for each nesting level beyond that
         .add_systems(
             Update,
             (
-                (
-                    // Spawn by names
-                    spawn_from_level_name,
-                    spawn_from_blueprint_name,
-                    apply_deferred,
-                    // spawn from gltf
-                    spawn_level_from_gltf,
-                    apply_deferred,
-                    spawn_blueprint_from_gltf,
-                    apply_deferred,
-                )
-                    .chain(),
-                (aabb::compute_scene_aabbs, apply_deferred)
-                    .chain()
-                    .run_if(aabbs_enabled.and_then(on_event::<BlueprintSpawned>())),
+                spawn_from_level_name,
+                apply_deferred, // run LevelGltf
+                spawn_level_from_gltf,
+                apply_deferred, // run SpawnLevel commands
+                spawn_from_blueprint_name,
+                apply_deferred, // run BlueprintGltf commands
+                spawn_blueprint_from_gltf,
+                apply_deferred, // run SpawnBlueprint commands
+            )
+                .chain()
+                .in_set(BlenderSet::Spawn),
+        )
+        .add_systems(
+            Update,
+            (
+                spawn_gltf_extras,
+                aabb::compute_scene_aabbs
+                    .run_if(aabbs_enabled.and_then(on_event::<BlueprintSpawned>())),                
                 materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
             )
                 .chain()
-                .in_set(GltfBlueprintsSet::Spawn),
-        )
-        .add_systems(
-            Update,
-            (
-                trigger_instance_animation_markers_events,
-                trigger_blueprint_animation_markers_events,
-            ),
-        )
-        .add_systems(Update, gltf_extras.in_set(GltfBlueprintsSet::Extras));
-
-        app.register_type::<ProxyCollider>().add_systems(
-            Update,
-            (physics::physics_replace_proxies)
-                .after(TransformSystem::TransformPropagate)
-                .in_set(GltfBlueprintsSet::Extras),
+                .in_set(BlenderSet::Injection),
         );
+
+        // .add_systems(
+        //     Update,
+        //     (
+        //         trigger_instance_animation_markers_events,
+        //         trigger_blueprint_animation_markers_events,
+        //     ),
+        // )
     }
 }
 
@@ -234,7 +236,7 @@ fn aabbs_enabled(blueprints_config: Res<BlenderPluginConfig>) -> bool {
 
 // parse gltf extras on added and spawn the components
 // note: using world so we can make use of ReflectComponent::insert
-fn gltf_extras(world: &mut World) {
+fn spawn_gltf_extras(world: &mut World) {
     // get the added extras
     let extras = world
         .query::<(Entity, &GltfExtras)>()

@@ -137,37 +137,7 @@ def watch_registry():
         pass
     return bevy.watcher_poll_frequency if bevy.watcher_enabled else None
 
-def get_selected_object_or_collection(context):
-    target = None
-    object = next(iter(context.selected_objects), None)
-    collection = context.collection
-    if object is not None:
-        target = object
-    elif collection is not None:
-        target = collection
-    return target
 
-## main callback function, fired whenever any property changes, no matter the nesting level
-# 2 values (self, context) and return None. 
-def update_component(self, context, definition, component_name):
-    bevy = bpy.context.window_manager.bevy # type: BevySettings
-    
-    current_object_or_collection = get_selected_object_or_collection(context)
-    if current_object_or_collection:
-        update_disabled = current_object_or_collection["__disable__update"] if "__disable__update" in current_object_or_collection else False
-        update_disabled = bevy.disable_all_object_updates or update_disabled # global settings
-        if update_disabled:
-            return
-        components_in_object = current_object_or_collection.components_meta.components
-        component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_in_object), None)
-
-        if component_meta is not None:
-            property_group_name = bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
-            property_group = getattr(component_meta, property_group_name)
-            # we use our helper to set the values
-            previous = json.loads(current_object_or_collection['bevy_components'])
-            previous[component_name] = bevy.property_group_value_to_custom_property_value(property_group, definition, None)
-            current_object_or_collection['bevy_components'] = json.dumps(previous)
 
 class BevySettings(bpy.types.PropertyGroup):   
     # save the settings to a text datablock    
@@ -225,18 +195,18 @@ class BevySettings(bpy.types.PropertyGroup):
     ) # type: ignore
     main_scenes: CollectionProperty(name="main scenes",type=SceneSelector) # type: ignore
     library_scenes: CollectionProperty(name="library scenes", type=SceneSelector ) # type: ignore
-    collection_instances_combine_mode : EnumProperty(
-        # TODO: go over this again
-        name='Collection instances',
-        items=(
-           ('Split', 'Split', 'replace collection instances with an empty + blueprint, creating links to sub blueprints (Default, Recomended)'),
-           # TODO: what use case is this for ?, made everything a bit more complex
-           ('Embed', 'Embed', 'treat collection instances as embeded objects and do not replace them with an empty'),
-           ('EmbedExternal', 'EmbedExternal', 'treat instances of external (not specifified in the current blend file) collections (aka assets etc) as embeded objects and do not replace them with empties'),
-           #('Inject', 'Inject', 'inject components from sub collection instances into the curent object')
-        ),
-        default='Split'
-    ) # type: ignore
+    # collection_instances_combine_mode : EnumProperty(
+    #     # TODO: go over this again
+    #     name='Collection instances',
+    #     items=(
+    #        ('Split', 'Split', 'replace collection instances with an empty + blueprint, creating links to sub blueprints (Default, Recomended)'),
+    #        # TODO: what use case is this for ?, made everything a bit more complex
+    #        ('Embed', 'Embed', 'treat collection instances as embeded objects and do not replace them with an empty'),
+    #        ('EmbedExternal', 'EmbedExternal', 'treat instances of external (not specifified in the current blend file) collections (aka assets etc) as embeded objects and do not replace them with empties'),
+    #        #('Inject', 'Inject', 'inject components from sub collection instances into the curent object')
+    #     ),
+    #     default='Split'
+    # ) # type: ignore
 
     # 
     # UI settings
@@ -292,6 +262,22 @@ class BevySettings(bpy.types.PropertyGroup):
         default=0
     ) # type: ignore
 
+    # Edit collection instance settings
+    edit_collection_last_scene: StringProperty(
+        name="name of the scene we started from for editing collection instances",
+        description="",
+        default=""
+    )# type: ignore
+    edit_collection_world_texture: bpy.props.EnumProperty(
+        name="Background",
+        description="Background (World) texture of the temporary scene",
+        items=[
+            ("checker", "Checker (generated map)", "Checker-like texture using a Generated map"),
+            ("checker_view", "Checker (view aligned)", "Checkerboard texture aligned to the view"),
+            ("gray", "Gray", "Solid Gray Background"),
+            ("none", "None", "No World/background (black)")
+        ]
+    ) # type: ignore
 
     def __init__(self):
         self.type_data = RegistryData()
@@ -314,7 +300,7 @@ class BevySettings(bpy.types.PropertyGroup):
         library_scene_names = list(map(lambda scene: scene.name, self.library_scenes))
         level_scenes = list(map(lambda name: bpy.data.scenes[name], level_scene_names))
         library_scenes = list(map(lambda name: bpy.data.scenes[name], library_scene_names))        
-        return [level_scene_names, level_scenes, library_scene_names, library_scenes]
+        return (level_scene_names, level_scenes, library_scene_names, library_scenes)
 
     def load_settings(self):
         stored_settings = bpy.data.texts[SETTING_NAME] if SETTING_NAME in bpy.data.texts else None        
@@ -544,16 +530,19 @@ class BevySettings(bpy.types.PropertyGroup):
             for blueprint_name in blueprint_instance_names_for_scene:
                 blueprint = self.data.blueprints_per_name.get(blueprint_name, None)
                 if blueprint is not None:                     
-                    blueprint_exported_path = None
-                    if blueprint.local:
-                        blueprint_exported_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
-                    else:
-                        # get the injected path of the external blueprints
-                        blueprint_exported_path = blueprint.collection['export_path'] if 'export_path' in blueprint.collection else None
-                        print("foo", dict(blueprint.collection))
-                    if blueprint_exported_path is not None:
-                        blueprint_assets_list.append({"name": blueprint.name, "path": blueprint_exported_path, "type": "MODEL", "internal": True})
-
+                    blueprint_exported_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
+                    blueprint_assets_list.append({"name": blueprint.name, "path": blueprint_exported_path, "type": "MODEL", "internal": True})
+                    # if not blueprint.local:
+                    #     blueprint_exported_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")
+                    # else:
+                    #     # get the injected path of the external blueprints
+                    #     blueprint_exported_path = blueprint.collection['export_path'] if 'export_path' in blueprint.collection else None
+                    #     print("foo", dict(blueprint.collection))
+                    # if blueprint_exported_path is not None:
+                    #     blueprint_assets_list.append({"name": blueprint.name, "path": blueprint_exported_path, "type": "MODEL", "internal": True})
+                else:
+                    print("ERROR: could not find blueprint", blueprint_name)
+                    
         # fetch images/textures
         # see https://blender.stackexchange.com/questions/139859/how-to-get-absolute-file-path-for-linked-texture-image
         # textures = []
@@ -692,8 +681,6 @@ class BevySettings(bpy.types.PropertyGroup):
     def has_type_infos(self):
         return len(self.type_data.type_infos.keys()) != 0
 
-
-
     def load_registry(self):
         # cleanup previous data and ui data
         self.propGroupIdCounter = 0
@@ -724,20 +711,53 @@ class BevySettings(bpy.types.PropertyGroup):
             print(f"WARN: registy file does not exist: {self.registry_file}")
             return            
 
-        # helper function that returns a lambda, used for the PropertyGroups update function
+        # helper function that returns a lambda, used for the PropertyGroups update function below        
         def update_calback_helper(definition, update, component_name_override):
             return lambda self, context: update(self, context, definition, component_name_override)
+
+        # called on updated by generated property groups for component_meta, serializes component_meta then saves it to bevy_components
+        def update_component(self, context, definition, component_name):
+            bevy = bpy.context.window_manager.bevy # type: BevySettings
+            
+            # get selected object or collection:
+            current_object_or_collection = None
+            object = next(iter(context.selected_objects), None)
+            collection = context.collection
+            if object is not None:
+                current_object_or_collection = object
+            elif collection is not None:
+                current_object_or_collection = collection            
+            
+            # if we have an object or collection
+            if current_object_or_collection:
+                update_disabled = current_object_or_collection["__disable__update"] if "__disable__update" in current_object_or_collection else False
+                update_disabled = bevy.disable_all_object_updates or update_disabled # global settings
+                if update_disabled:
+                    return
+                
+                if current_object_or_collection["components_meta"] is None:
+                    print("ERROR: object does not have components_meta", current_object_or_collection.name)
+                    return
+                
+                components_in_object = current_object_or_collection.components_meta.components
+                component_meta =  next(filter(lambda component: component["long_name"] == component_name, components_in_object), None)
+
+                if component_meta is not None:
+                    property_group_name = bevy.type_data.long_names_to_propgroup_names.get(component_name, None)
+                    property_group = getattr(component_meta, property_group_name)
+                    # we use our helper to set the values
+                    previous = json.loads(current_object_or_collection['bevy_components'])
+                    previous[component_name] = bevy.property_group_value_to_custom_property_value(property_group, definition, None)
+                    current_object_or_collection['bevy_components'] = json.dumps(previous)
 
         # Generate propertyGroups for all components        
         for component_name in self.type_data.type_infos:
             definition = self.type_data.type_infos.get(component_name, None) 
             if definition:
-                self.process_component(definition, update_calback_helper(definition, update_component, component_name), None, [])
-                #process_component(registry, definition, , extras=None, nesting_long_names=[])
-        
+                self.process_component(definition, update_calback_helper(definition, update_component, component_name), None, [])                
             else:
                 print(f"ERROR: could not find definition for component {component_name}")
-                #self.type_data.type_infos_missing.append(component_name)
+                #self.data.type_infos_missing.append(component_name)
 
         # if we had to add any wrapper types on the fly, process them now
         for long_name in self.type_data.custom_types_to_add:
@@ -1150,11 +1170,11 @@ class BevySettings(bpy.types.PropertyGroup):
     def add_component_to_object(self, object, long_name: str, value=None):
         cleanup_invalid_metadata(object)
         if object is not None:
-            # print("add_component_to_object", component_definition)            
-            
+            definition = self.type_data.type_infos[long_name]         
+            print("adding component", definition)
             if not self.has_type_infos():
                 raise Exception('registry type infos have not been loaded yet or are missing !')            
-            definition = self.type_data.type_infos[long_name]
+            
             # now we use our pre_generated property groups to set the initial value of our custom property
             (_, propertyGroup) = self.upsert_component_in_object(object, long_name=long_name)
             if value == None:
@@ -1673,10 +1693,9 @@ class BevySettings(bpy.types.PropertyGroup):
                 continue       
             if filter is not None and filter(object) is False:
                 continue
-            #check if a specific collection instance does not have an ovveride for combine_mode
-            combine_mode = object['_combine'] if '_combine' in object else self.collection_instances_combine_mode
+            #check if a specific collection instance does not have an ovveride for combine_mode            
             parent = parent_empty
-            self.duplicate_object(object, parent, combine_mode, destination_collection)
+            self.duplicate_object(object, parent, destination_collection)
             
         # for every child-collection of the source, copy its content into a new sub-collection of the destination
         for collection in source_collection.children:
@@ -1695,9 +1714,9 @@ class BevySettings(bpy.types.PropertyGroup):
         return {}
     
     # recursively duplicates an object and its children, replacing collection instances with empties
-    def duplicate_object(self, object, parent, combine_mode, destination_collection):
+    def duplicate_object(self, object, parent, destination_collection):
 
-        custom_properties_to_filter_out = ['_combine', 'template', 'components_meta']
+        custom_properties_to_filter_out = ['template', 'components_meta']
 
         def is_component_valid_and_enabled(object, component_name):
             if "components_meta" in object or hasattr(object, "components_meta"):
@@ -1719,9 +1738,8 @@ class BevySettings(bpy.types.PropertyGroup):
 
         # these are mostly for when using this add-on together with the bevy_components add-on
         copy = None
-        internal_blueprint_names = [blueprint.name for blueprint in self.data.internal_blueprints]
-        # print("COMBINE MODE", combine_mode)
-        if object.instance_type == 'COLLECTION' and (combine_mode == 'Split' or (combine_mode == 'EmbedExternal' and (object.instance_collection.name in internal_blueprint_names)) ): 
+        #internal_blueprint_names = [blueprint.name for blueprint in self.data.internal_blueprints]        
+        if object.instance_type == 'COLLECTION': 
             #print("creating empty for", object.name, object.instance_collection.name, internal_blueprint_names, combine_mode)
             collection_name = object.instance_collection.name
             original_name = object.name
@@ -1729,7 +1747,7 @@ class BevySettings(bpy.types.PropertyGroup):
             object.name = original_name + "____bak"
             empty_obj = make_empty(original_name, object.location, object.rotation_euler, object.scale, destination_collection)
             
-            """we inject the collection/blueprint name, as a component called 'BlueprintName', but we only do this in the empty, not the original object"""
+            # added blueprint name, as a component called 'BlueprintName', but we only do this in the empty, not the original object"""
             empty_obj['BlueprintName'] = '("'+collection_name+'")'                    
 
             # we also inject a list of all sub blueprints, so that the bevy side can preload them
@@ -1774,39 +1792,9 @@ class BevySettings(bpy.types.PropertyGroup):
         #copy_animation_data(object, copy)
 
         for child in object.children:
-            self.duplicate_object(child, copy, combine_mode, destination_collection)
+            self.duplicate_object(child, copy, destination_collection)
 
-    # IF collection_instances_combine_mode is not 'split' check for each scene if any object in changes_per_scene has an instance in the scene
-    def changed_object_in_scene(self, scene_name, changes_per_scene) -> bool:
-         
-        # Embed / EmbedExternal
-        blueprints_from_objects = self.data.blueprints_from_objects
-        blueprint_instances_in_scene = self.data.blueprint_instances_per_main_scene.get(scene_name, None)
-
-        if blueprint_instances_in_scene is not None:
-            changed_objects = [object_name for change in changes_per_scene.values() for object_name in change.keys()] 
-            changed_blueprints = [blueprints_from_objects[changed] for changed in changed_objects if changed in blueprints_from_objects]
-            changed_blueprints_with_instances_in_scene = [blueprint for blueprint in changed_blueprints if blueprint.name in blueprint_instances_in_scene.keys()]
-
-            changed_blueprint_instances= [object for blueprint in changed_blueprints_with_instances_in_scene for object in blueprint_instances_in_scene[blueprint.name]]
-            # print("changed_blueprint_instances", changed_blueprint_instances,)
-
-            level_needs_export = False
-            for blueprint_instance in changed_blueprint_instances:
-                blueprint = self.data.blueprint_name_from_instances[blueprint_instance]
-                combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else self.collection_instances_combine_mode
-                #print("COMBINE MODE FOR OBJECT", combine_mode)
-                if combine_mode == 'Embed':
-                    level_needs_export = True
-                    break
-                elif combine_mode == 'EmbedExternal' and not blueprint.local:
-                    level_needs_export = True
-                    break
-            # changes => list of changed objects (regardless of wether they have been changed in main scene or in lib scene)
-            # wich of those objects are blueprint instances
-            # we need a list of changed objects that are blueprint instances
-            return level_needs_export
-        return False
+    
 
     # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
     def get_levels_to_export(self, changes_per_scene, changed_export_parameters) -> list[str]:
@@ -1818,17 +1806,48 @@ class BevySettings(bpy.types.PropertyGroup):
             found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
             print("level", scene_name, "found", found, "path", gltf_output_path)
             return found
+        
+        # IF collection_instances_combine_mode is not 'split' check for each scene if any object in changes_per_scene has an instance in the scene
+        def changed_object_in_scene(self, scene_name, changes_per_scene) -> bool:
+            
+            # Embed / EmbedExternal
+            blueprints_from_objects = self.data.blueprints_from_objects
+            blueprint_instances_in_scene = self.data.blueprint_instances_per_main_scene.get(scene_name, None)
+
+            if blueprint_instances_in_scene is not None:
+                changed_objects = [object_name for change in changes_per_scene.values() for object_name in change.keys()] 
+                changed_blueprints = [blueprints_from_objects[changed] for changed in changed_objects if changed in blueprints_from_objects]
+                changed_blueprints_with_instances_in_scene = [blueprint for blueprint in changed_blueprints if blueprint.name in blueprint_instances_in_scene.keys()]
+
+                changed_blueprint_instances= [object for blueprint in changed_blueprints_with_instances_in_scene for object in blueprint_instances_in_scene[blueprint.name]]
+                # print("changed_blueprint_instances", changed_blueprint_instances,)
+
+                level_needs_export = False
+                for blueprint_instance in changed_blueprint_instances:
+                    blueprint = self.data.blueprint_name_from_instances[blueprint_instance]
+                    combine_mode = "Split"
+                    #print("COMBINE MODE FOR OBJECT", combine_mode)
+                    if combine_mode == 'Embed':
+                        level_needs_export = True
+                        break
+                    elif combine_mode == 'EmbedExternal' and not blueprint.local:
+                        level_needs_export = True
+                        break
+                # changes => list of changed objects (regardless of wether they have been changed in main scene or in lib scene)
+                # wich of those objects are blueprint instances
+                # we need a list of changed objects that are blueprint instances
+                return level_needs_export
+            return False
     
         # determine list of main scenes to export
         # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
         main_scenes_to_export = [scene_name for scene_name in level_names if not CHANGE_DETECTION 
                                 or changed_export_parameters 
                                 or scene_name in changes_per_scene.keys() 
-                                or self.changed_object_in_scene(scene_name, changes_per_scene) 
                                 or not check_if_blueprint_on_disk(scene_name) ]
-
+                                #or self.changed_object_in_scene(scene_name, changes_per_scene) 
+                                
         return main_scenes_to_export
-
 
     # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
     def get_blueprints_to_export(self, changes_per_scene, changed_export_parameters) -> list[Blueprint]:
@@ -1876,9 +1895,9 @@ class BevySettings(bpy.types.PropertyGroup):
                 # print("INSTANCES", blueprint_instances, blueprints_data.internal_collection_instances)
                 # marked blueprints that have changed are always exported, regardless of whether they are in use (have instances) or not 
                 for blueprint_instance in blueprint_instances:
-                    combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else self.collection_instances_combine_mode
-                    if combine_mode == "Split": # we only keep changed blueprints if mode is set to split for at least one instance (aka if ALL instances of a blueprint are merged, do not export ? )  
-                        filtered_blueprints.append(blueprint)
+                    # combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else self.collection_instances_combine_mode
+                    # if combine_mode == "Split": # we only keep changed blueprints if mode is set to split for at least one instance (aka if ALL instances of a blueprint are merged, do not export ? )  
+                    filtered_blueprints.append(blueprint)
 
             blueprints_to_export =  list(set(filtered_blueprints))
         
@@ -2040,51 +2059,40 @@ class BevySettings(bpy.types.PropertyGroup):
         export_settings = dict(        
             # these require material-info branch version of the io_scene_gltf
             log_info=False,    # limit the output to the console
+            check_existing=False,
 
             # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
-            check_existing=False,
+            export_apply=True,
+            export_cameras=True,
+            export_extras=True, # For custom exported properties.
+            export_lights=True,            
             export_yup=True,
+
+            # TODO: add animations back                         
+            export_animations=False,
+            #export_draco_mesh_compression_enable=True,
+            #export_skins=True,
+            #export_morph=False,
+            #export_optimize_animation_size=False
+
             use_selection=False,
             use_visible=False, # Export visible and hidden objects
             use_renderable=False,
             use_active_collection= True,
             use_active_collection_with_nested=True,
             use_active_scene = True,
-            
+                        
             #export_attributes=True,
             #export_shared_accessors=True,
             #export_hierarchy_flatten_objs=False, # Explore this more
-
-            export_apply=True,
-            
-            
-
-            # TODO: add animations back                         
-            #export_draco_mesh_compression_enable=True,
-            export_animations=False,
-
-            export_cameras=True,
-            export_extras=True, # For custom exported properties.
-            export_lights=True,
-
             #export_texcoords=True, # used by material info and uv sets
             #export_normals=True,
-            # here add draco settings
-            #export_draco_mesh_compression_enable = False,
-
             #export_tangents=False,
             #export_materials
             #export_colors=True,
             
             #use_mesh_edges
             #use_mesh_vertices
-        
-            
-            #
-            #export_skins=True,
-            #export_morph=False,
-            #export_animations=False,
-            #export_optimize_animation_size=False
         )
 
         # add custom settings to the export settings
@@ -2093,18 +2101,14 @@ class BevySettings(bpy.types.PropertyGroup):
         temp_scene = bpy.data.scenes.new(name=temp_scene_name)
         temp_root_collection = temp_scene.collection
 
-        # save active scene
+        # save active scene, selected collection and mode
         original_scene = bpy.context.window.scene
-        # and selected collection
-        original_collection = bpy.context.view_layer.active_layer_collection
-        # and mode
+        original_collection = bpy.context.view_layer.active_layer_collection        
         original_mode = bpy.context.active_object.mode if bpy.context.active_object != None else None
         
         # we change the mode to object mode, otherwise the gltf exporter is not happy
         if original_mode != None and original_mode != 'OBJECT':
-            #print("setting to object mode", original_mode)
             bpy.ops.object.mode_set(mode='OBJECT')
-
 
         # we set our active scene to be this one : this is needed otherwise the stand-in empties get generated in the wrong scene
         bpy.context.window.scene = temp_scene
@@ -2126,12 +2130,10 @@ class BevySettings(bpy.types.PropertyGroup):
             # export the temporary scene
             try:            
                 settings = {**export_settings, "filepath": gltf_output_path }            
-                #print("export settings", settings)
-                
                 os.makedirs(os.path.dirname(gltf_output_path), exist_ok=True)
+
                 #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf
                 bpy.ops.export_scene.gltf(**settings)
-
 
             except Exception as error:
                 print("failed to export gltf !", error)
@@ -2146,5 +2148,3 @@ class BevySettings(bpy.types.PropertyGroup):
         # reset mode
         if original_mode != None:
             bpy.ops.object.mode_set( mode = original_mode )
-
-

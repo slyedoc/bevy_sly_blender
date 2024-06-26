@@ -1,10 +1,9 @@
 # TODO: will break this up, but for now trying to get control over things,
-# and have random panels that exists god knows where
+# and having random panels that exists god knows where
 # spawning in due to a parentid doesnt work for me
 
 import bpy
 import json
-from types import SimpleNamespace
 
 from ..operators.edit_collection import ExitCollectionInstance
 
@@ -257,19 +256,16 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
             row.label(text="Delete Temp Scene")
             row.operator(ExitCollectionInstance.bl_idname, text="Delete Temp Scene" , icon="X")
 
-
-
-
         # Tabs
         row = layout.row()
         match bevy.mode:
-            case "ASSETS":
-                # TODO: this was in the middle of changing when i forked, update it
-                #layout.operator(operator="bevyassets.test")
+            # case "ASSETS":
+            #     # TODO: this was in the middle of changing when i forked, update it
+            #     #layout.operator(operator="bevyassets.test")
 
-                name = "world"
-                header, panel = layout.box().panel(f"assets{name}", default_closed=False)
-                header.label(text="World/Level Assets")
+            #     name = "world"
+            #     header, panel = layout.box().panel(f"assets{name}", default_closed=False)
+            #     header.label(text="World/Level Assets")
 
                 # settings = {"blueprints_path": "blueprints", "export_gltf_extension": ".glb"}
                 # settings = SimpleNamespace(**settings)

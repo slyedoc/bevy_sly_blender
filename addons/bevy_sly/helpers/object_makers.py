@@ -19,7 +19,7 @@ def make_empty(name, location, rotation, scale, collection):
     #bpy.context.view_layer.update()
     return empty_obj
 
-def make_cube(name, location=[0,0,0], rotation=[0,0,0], scale=[1,1,1], collection=None):
+def make_cube(name, location=[0,0,0], rotation=[0,0,0], scale=[1,1,1], scene: bpy.types.Scene = None):
     new_mesh = bpy.data.meshes.new(name+"_Mesh") #None
     """verts = [( 1.0,  1.0,  0.0), 
          ( 1.0, -1.0,  0.0),
@@ -42,8 +42,8 @@ def make_cube(name, location=[0,0,0], rotation=[0,0,0], scale=[1,1,1], collectio
     new_object.scale = scale
     new_object.rotation_euler = rotation
 
-    if collection != None:
-        collection.objects.link( new_object )
+    if scene != None:
+        scene.collection.objects.link( new_object )
     return new_object
 
 

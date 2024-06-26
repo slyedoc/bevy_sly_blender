@@ -221,10 +221,11 @@ impl Command for SpawnBlueprint {
                                 continue;
                             }
 
-                            
-
                             // apply the root entity's transform to existing entity
                             // but dont copy it
+                            if type_id == TypeId::of::<GlobalTransform>() {
+                                continue;
+                            }
                             if type_id == TypeId::of::<Transform>() {
                                 let name = scene
                                     .world

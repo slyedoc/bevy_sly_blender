@@ -12,8 +12,6 @@ use bevy_xpbd_3d::{
     prelude::*,
 };
 
-use crate::BlenderSet;
-
 pub(super) fn plugin(app: &mut App) {
     app.register_type::<ProxyCollider>().add_systems(
         PostUpdate,
@@ -50,24 +48,15 @@ pub(super) fn physics_replace_proxies(
             "generating collider for {:?}: {:?}",
             name_maybe.unwrap_or_else(|| &tmp), collider_proxy
         );
-        match collider_proxy {
+        let collider = match collider_proxy {
             ProxyCollider::Ball(radius) => {
-                commands.entity(entity)
-                    .insert(Collider::sphere(*radius))
-                    //.insert(ActiveEvents::COLLISION_EVENTS)  // FIXME: this is just for demo purposes (also is there something like that in xpbd ?) !!!
-                    ;
+              Collider::sphere(*radius)
             }
             ProxyCollider::Cuboid(size) => {
-                commands
-                    .entity(entity)
-                    .insert(Collider::cuboid(size.x, size.y, size.z));
-                //.insert(ActiveEvents::COLLISION_EVENTS)  // FIXME: this is just for demo purposes (also is there something like that in xpbd ?) !!!
+                Collider::cuboid(size.x, size.y, size.z)
             }
             ProxyCollider::Capsule(height, radius) => {
-                commands.entity(entity)
-                    .insert(Collider::capsule( *height, *radius))
-                    //.insert(ActiveEvents::COLLISION_EVENTS)  // FIXME: this is just for demo purposes (also is there something like that in xpbd ?) !!!
-                    ;
+                Collider::capsule( *height, *radius)
             }
             ProxyCollider::Mesh => {
                 let mut vertices: Vec<OPoint<f32, Const<3>>> = Vec::new();
@@ -105,16 +94,14 @@ pub(super) fn physics_replace_proxies(
                     }
                 }
                 let convex: Collider = SharedShape::convex_hull(&vertices).unwrap().into();
-                commands.entity(entity).insert(convex);
+                convex
             }
             ProxyCollider::Halfspace(v) => {
                 info!("generating collider from proxy: halfspace");
-                commands.entity(entity)
-                    .insert(Collider::halfspace(*v))
-                    //.insert(ActiveEvents::COLLISION_EVENTS)  // FIXME: this is just for demo purposes (also is there something like that in xpbd ?) !!!
-                    ;
+                Collider::halfspace(*v)
             }
-        }
+        };
+        commands.entity(entity).insert(collider);
     }
 }
 

@@ -148,6 +148,8 @@ class BevySettings(bpy.types.PropertyGroup):
             'auto_export': self.auto_export,
             'main_scene_names': [scene.name for scene in self.main_scenes],
             'library_scene_names': [scene.name for scene in self.library_scenes],
+            'edit_collection_world_texture': self.edit_collection_world_texture,
+            'edit_collection_last_scene': self.edit_collection_last_scene
         })
         # update or create the text datablock
         if SETTING_NAME in bpy.data.texts:
@@ -291,7 +293,7 @@ class BevySettings(bpy.types.PropertyGroup):
         stored_settings = bpy.data.texts[SETTING_NAME] if SETTING_NAME in bpy.data.texts else None        
         if stored_settings != None:
             settings =  json.loads(stored_settings.as_string())        
-            for prop in ['assets_path', 'registry_file', 'auto_export', 'mode']:
+            for prop in ['assets_path', 'registry_file', 'auto_export', 'mode', 'edit_collection_world_texture', 'edit_collection_last_scene']:
                 if prop in settings:
                     setattr(self, prop, settings[prop])
             if "main_scene_names" in settings:

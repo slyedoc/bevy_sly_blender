@@ -21,7 +21,8 @@ from .helpers.object_makers import make_cube, make_empty
 from .components_meta import ComponentMetadata,  cleanup_invalid_metadata, get_bevy_component_value_by_long_name, get_bevy_components, remove_component_from_object, upsert_bevy_component
 from .prop_groups import is_def_value_type, parse_struct_string, parse_tuplestruct_string, type_mappings, conversion_tables
 
-from .util import BLENDER_PROPERTY_MAPPING, BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS,  EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, SETTING_NAME, TEMPSCENE_PREFIX, VALUE_TYPES_DEFAULTS
+from .util import BLENDER_PROPERTY_MAPPING, BLUEPRINTS_PATH, CHANGE_DETECTION, EXPORT_MARKED_ASSETS,  EXPORT_SCENE_SETTINGS, EXPORT_STATIC_DYNAMIC, GLTF_EXTENSION, LEVELS_PATH, MATERIALS_PATH, NAME_BACKUP_SUFFIX, SETTING_NAME, TEMPSCENE_PREFIX, VALUE_TYPES_DEFAULTS
+from collections import  defaultdict
 
 class SceneSelector(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty() # type: ignore
@@ -148,6 +149,8 @@ class BevySettings(bpy.types.PropertyGroup):
             'auto_export': self.auto_export,
             'main_scene_names': [scene.name for scene in self.main_scenes],
             'library_scene_names': [scene.name for scene in self.library_scenes],
+            'edit_collection_world_texture': self.edit_collection_world_texture,
+            'edit_collection_last_scene': self.edit_collection_last_scene
         })
         # update or create the text datablock
         if SETTING_NAME in bpy.data.texts:
@@ -275,7 +278,158 @@ class BevySettings(bpy.types.PropertyGroup):
     def unregister(cls):
         pass
 
-    @classmethod 
+    # export the scenes, blueprints, materials etc
+    def export(self, changes_per_scene, changed_export_parameters):
+        
+        start = time.time()
+
+        # save active scene, selected collection and mode
+        original_scene = bpy.context.window.scene
+        original_collection = bpy.context.view_layer.active_layer_collection        
+        original_mode = bpy.context.active_object.mode if bpy.context.active_object != None else None
+        original_selections = bpy.context.selected_objects
+
+        # we change the mode to object mode, otherwise the gltf exporter is not happy
+        if original_mode != None and original_mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        self.create_dirs()
+        [level_scene_names, level_scenes, library_scene_names, library_scenes] = self.get_scenes()
+
+        # Figure out what to export
+        # update the blueprints registry
+        self.scan_blueprints()
+
+        # we inject the blueprints export path
+        for blueprint in self.data.internal_blueprints:
+            blueprint.collection["export_path"] = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")           
+        
+        # Create custom compoents based on the scene settings
+        # TODO: should really only create this in the temp scenes created for export, not on the actual scenes then have to clean them up
+        if EXPORT_SCENE_SETTINGS:
+            for level_scene in level_scenes:
+                lighting_components_name = f"lighting_components_{level_scene.name}"
+                lighting_components = bpy.data.objects.get(lighting_components_name, None)
+                if not lighting_components:                    
+                    lighting_components = make_empty('lighting_components_'+level_scene.name, [0,0,0], [0,0,0], [0,0,0])
+                    level_scene.collection.objects.link(lighting_components)  
+                if level_scene.world is not None:
+                    lighting_components['BlenderBackgroundShader'] = ambient_color_to_component(level_scene.world)
+                lighting_components['BlenderShadowSettings'] = scene_shadows_to_component(level_scene)
+
+                if level_scene.eevee.use_bloom:
+                    lighting_components['BloomSettings'] = scene_bloom_to_component(level_scene)
+                elif 'BloomSettings' in lighting_components:
+                    del lighting_components['BloomSettings']
+
+                if level_scene.eevee.use_gtao: 
+                    lighting_components['SSAOSettings'] = scene_ao_to_component(level_scene)
+                elif 'SSAOSettings' in lighting_components:
+                    del lighting_components['SSAOSettings']
+                    
+                #inject/ update light shadow information
+                for light in bpy.data.lights:
+                    enabled = 'true' if light.use_shadow else 'false'
+                    light['BlenderLightShadows'] = f"(enabled: {enabled}, buffer_bias: {light.shadow_buffer_bias})"
+
+            # Export blueprints and levels
+            # get blueprints and levels
+            blueprints_to_export = self.get_blueprints_to_export(changes_per_scene, changed_export_parameters)                     
+            #levels_to_export = self.get_levels_to_export(changes_per_scene, changed_export_parameters)           
+            used_material_names = self.get_all_materials(library_scenes)
+            current_project_name = Path(bpy.context.blend_data.filepath).stem
+
+            # update the list of tracked exports
+            exports_total = len(blueprints_to_export) + len((level_scene_names)) + 1  # +1 for the materials library
+            bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
+            bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
+
+            print("-------------------------------")
+            print("Blueprints:  ", len(self.data.internal_blueprints))
+            print("Levels:      ", len(level_scene_names))
+            print("Materials:   ", len(used_material_names))
+            print("")
+   
+        try:           
+            # Export materials
+            gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
+            material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
+            for index, material_name in enumerate(used_material_names):
+                object = make_cube("Material_"+material_name, location=[index * 0.2,0,0], rotation=[0,0,0], scale=[1,1,1], scene=material_scene)
+                material = bpy.data.materials[material_name]
+                if material:
+                    if object.data.materials: # assign to 1st material slot
+                        object.data.materials[0] = material
+                    else: # no slots
+                        object.data.materials.append(material)      
+            self.export_scene(material_scene, {}, gltf_path)
+
+            # clear material:
+            for object in [o for o in material_scene.collection.objects]:
+                try:
+                    mesh = bpy.data.meshes[object.name+"_Mesh"]
+                    bpy.data.meshes.remove(mesh, do_unlink=True)
+                except Exception as error:
+                    pass
+                try:
+                    bpy.data.objects.remove(object, do_unlink=True)
+                except:pass
+            bpy.data.scenes.remove(material_scene)
+
+            # export levels
+            level_scene_names.sort()      
+            level_count = len(level_scene_names)
+            for index, scene_name in enumerate(level_scene_names):                             
+                level_scene = bpy.data.scenes[scene_name] # type: bpy.types.Scene                
+                print(f"exporting level {index+1}/{level_count}) - {level_scene.name}")                
+                gltf_path = os.path.join(self.assets_path, LEVELS_PATH, level_scene.name)    
+                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+ level_scene.name)  
+                copy_collection(level_scene.collection, temp_scene.collection)
+                self.export_scene(temp_scene, {}, gltf_path)
+                delete_scene(temp_scene)
+                restore_original_names(level_scene.collection)
+ 
+            # export blueprints
+            blueprints_to_export.sort(key = lambda a: a.name.lower())            
+            blueprint_count = len(blueprints_to_export)
+            for index, blueprint in enumerate(blueprints_to_export):
+                print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
+                gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
+                collection = bpy.data.collections[blueprint.name]
+                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)
+                copy_collection(collection, temp_scene.collection)
+                self.export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
+                delete_scene(temp_scene )                
+                restore_original_names(collection)
+
+            # reset scene
+            bpy.context.window.scene = original_scene
+            bpy.context.view_layer.active_layer_collection = original_collection
+            if original_mode != None:
+                bpy.ops.object.mode_set( mode = original_mode )
+            for obj in original_selections:
+                obj.select_set(True)
+                                
+            print(f"Export time: {time.time() - start:.2f}s")         
+
+        except Exception as error:
+            print(traceback.format_exc())
+            def error_message(self, context):
+                self.layout.label(text="Failure during auto_export: Error: "+ str(error))
+
+            bpy.context.window_manager.popup_menu(error_message, title="Error", icon='ERROR')
+
+        finally:
+            # FIXME: error handling ? also redundant
+            if EXPORT_SCENE_SETTINGS:
+                # TODO: IMPORTANT: this where those custom components are removed
+                    for level_scene in level_scenes:
+                        lighting_components_name = f"lighting_components_{level_scene.name}"
+                        lighting_components = bpy.data.objects.get(lighting_components_name, None)
+                        if lighting_components:
+                            bpy.data.objects.remove(lighting_components, do_unlink=True)
+
+    @classmethod
     def get_all_modes(cls):
         # Return a list of all possible mode values
         return [item[0] for item in cls.__annotations__['mode'].keywords['items']]
@@ -291,7 +445,7 @@ class BevySettings(bpy.types.PropertyGroup):
         stored_settings = bpy.data.texts[SETTING_NAME] if SETTING_NAME in bpy.data.texts else None        
         if stored_settings != None:
             settings =  json.loads(stored_settings.as_string())        
-            for prop in ['assets_path', 'registry_file', 'auto_export', 'mode']:
+            for prop in ['assets_path', 'registry_file', 'auto_export', 'mode', 'edit_collection_world_texture', 'edit_collection_last_scene']:
                 if prop in settings:
                     setattr(self, prop, settings[prop])
             if "main_scene_names" in settings:
@@ -489,7 +643,6 @@ class BevySettings(bpy.types.PropertyGroup):
             external_collection_instances=external_collection_instances,
             blueprint_name_from_instances=blueprint_name_from_instances
         )
-
 
     def has_type_infos(self):
         return len(self.type_data.type_infos.keys()) != 0
@@ -1496,200 +1649,60 @@ class BevySettings(bpy.types.PropertyGroup):
         key = str(nesting) + longName if len(nesting) > 0 else longName
         self.type_data.long_names_to_propgroup_names[key] = propGroupName
         return propGroupName
-    
-    def copy_hollowed_collection_into(self, source_collection, destination_collection, parent_empty=None, filter=None):                
 
-        for object in source_collection.objects:
-            if object.name.endswith("____bak"): # some objects could already have been handled, ignore them
-                continue       
-            if filter is not None and filter(object) is False:
-                continue
-            #check if a specific collection instance does not have an ovveride for combine_mode            
-            parent = parent_empty
-            self.duplicate_object(object, parent, destination_collection)
+    #def generate_and_export(self, settings: Dict[str, Any], gltf_output_path, temp_scene_name="__temp_scene", tempScene_filler=None, tempScene_cleaner=None):         
+    def export_scene(self, scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_path: str):         
+        # this are our default settings, can be overriden by settings
+        #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
+        export_settings = dict(     
+            log_info=False, # limit the output, was blowing up my console, requires material-info branch version of the io_scene_gltf
+            check_existing=False,
+
+            # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
+            export_apply=True,
+            export_cameras=True,
+            export_extras=True, # For custom exported properties.
+            export_lights=True,            
+            export_yup=True,
+
+            # TODO: add animations back
+            export_animations=False,
+            #export_draco_mesh_compression_enable=True,
+            #export_skins=True,
+            #export_morph=False,
+            #export_optimize_animation_size=False
+
+            # use only one of these at a time
+            use_active_collection_with_nested=True, # these 2
+            use_active_collection=True,
+            use_active_scene=True, 
+
+            # other filters
+            use_selection=False,
+            use_visible=False, # Export visible and hidden objects
+            use_renderable=False,
             
-        # for every child-collection of the source, copy its content into a new sub-collection of the destination
-        for collection in source_collection.children:
-            original_name = collection.name
-            collection.name = original_name + "____bak"
-            collection_placeholder = make_empty(original_name, [0,0,0], [0,0,0], [1,1,1], destination_collection)
-
-            if parent_empty is not None:
-                collection_placeholder.parent = parent_empty
-            self.copy_hollowed_collection_into(
-                source_collection = collection, 
-                destination_collection = destination_collection, 
-                parent_empty = collection_placeholder, 
-                filter = filter,
-            )
-        return {}
-    
-    # clear & remove "hollow scene"
-    def clear_hollow_scene(self, temp_scene: bpy.types.Scene, original_root_collection: bpy.types.Collection):
-        temp_scene.collection
-        # recursively restore original names
-        def restore_original_names(collection: bpy.types.Collection):
-            if collection.name.endswith("____bak"):
-                collection.name = collection.name.replace("____bak", "")
-            for object in collection.objects:
-                if object.instance_type == 'COLLECTION':
-                    if object.name.endswith("____bak"):
-                        object.name = object.name.replace("____bak", "")
-                else: 
-                    if object.name.endswith("____bak"):
-                        object.name = object.name.replace("____bak", "")
-            for child_collection in collection.children:
-                restore_original_names(child_collection)
-
-        # remove any data we created
-        temp_root_collection = temp_scene.collection 
-        temp_scene_objects = [o for o in temp_root_collection.all_objects]
-        for object in temp_scene_objects:
-            #print("removing", object.name)
-            bpy.data.objects.remove(object, do_unlink=True)
-
-        # remove the temporary scene
-        bpy.data.scenes.remove(temp_scene, do_unlink=True)
-        
-        # reset original names
-        restore_original_names(original_root_collection)
-
-
-    # recursively duplicates an object and its children, replacing collection instances with empties
-    def duplicate_object(self, object: bpy.types.Object, parent, destination_collection: bpy.types.Collection):
-
-        custom_properties_to_filter_out = ['template', 'components_meta']
-
-        def is_component_valid_and_enabled(object, component_name):
-            if "components_meta" in object or hasattr(object, "components_meta"):
-                target_components_metadata = object.components_meta.components
-                component_meta = next(filter(lambda component: component["long_name"] == component_name, target_components_metadata), None)
-                if component_meta != None:
-                    return component_meta.enabled and not component_meta.invalid
-            return True
-        
-        def remove_unwanted_custom_properties(object):
-            to_remove = []
-            component_names = list(object.keys()) # to avoid 'IDPropertyGroup changed size during iteration' issues
-            for component_name in component_names:
-                if not is_component_valid_and_enabled(object, component_name):
-                    to_remove.append(component_name)
-            for cp in custom_properties_to_filter_out + to_remove:
-                if cp in object:
-                    del object[cp]
-
-        # these are mostly for when using this add-on together with the bevy_components add-on
-        copy = None
-        #internal_blueprint_names = [blueprint.name for blueprint in self.data.internal_blueprints]        
-        if object.instance_type == 'COLLECTION': 
-            #print("creating empty for", object.name, object.instance_collection.name, internal_blueprint_names, combine_mode)
-            collection_name = object.instance_collection.name
-            original_name = object.name
-
-            object.name = original_name + "____bak"
-            empty_obj = make_empty(original_name, object.location, object.rotation_euler, object.scale, destination_collection)
-            
-            # added blueprint name, as a component called 'BlueprintName', but we only do this in the empty, not the original object"""
-            empty_obj['BlueprintName'] = '("'+collection_name+'")'                    
-
-            # we also inject a list of all sub blueprints, so that the bevy side can preload them
-            # TODO: dont think i am using this right now
-            blueprint_name = collection_name
-            children_per_blueprint = {}
-            blueprint = self.data.blueprints_per_name.get(blueprint_name, None)
-            if blueprint:
-                children_per_blueprint[blueprint_name] = blueprint.nested_blueprints
-            
-            # TODO: come back to nested blueprints 
-            #empty_obj["BlueprintPath"] = ''
-            #empty_obj["BlueprintsList"] = f"({json.dumps(dict(children_per_blueprint))})"
-            
-            # we copy custom properties over from our original object to our empty
-            for component_name, component_value in object.items():
-                #print(f"{original_name} - {component_name}: {component_value}")
-                if component_name not in custom_properties_to_filter_out and is_component_valid_and_enabled(object, component_name): #copy only valid properties
-                    empty_obj[component_name] = component_value
-            copy = empty_obj
-        else:
-            # for objects which are NOT collection instances or when embeding
-            # we create a copy of our object and its children, to leave the original one as it is
-            original_name = object.name
-            object.name = original_name + "____bak"
-            copy = object.copy()
-            copy.name = original_name
-
-            destination_collection.objects.link(copy)
-
-            """if object.parent == None:
-                if parent_empty is not None:
-                    copy.parent = parent_empty
-            """
-        # do this both for empty replacements & normal copies
-        if parent is not None:
-            copy.parent = parent
-        remove_unwanted_custom_properties(copy)
-        
-        
-        # TODO: come back to animation data
-        #copy_animation_data(object, copy)
-
-        for child in object.children:
-            self.duplicate_object(child, copy, destination_collection)
-
-    
-
-    # this also takes the split/embed mode into account: if a collection instance changes AND embed is active, its container level/world should also be exported
-    def get_levels_to_export(self, changes_per_scene, changed_export_parameters) -> list[str]:
-
-        [level_names, level_scenes, library_scene_names, library_scenes] = self.get_scenes()
-    
-        def check_if_blueprint_on_disk(scene_name: str) -> bool:
-            gltf_output_path = os.path.join(self.assets_path, LEVELS_PATH, scene_name + GLTF_EXTENSION)
-            found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
-            print("level", scene_name, "found", found, "path", gltf_output_path)
-            return found
-        
-        # IF collection_instances_combine_mode is not 'split' check for each scene if any object in changes_per_scene has an instance in the scene
-        def changed_object_in_scene(self, scene_name, changes_per_scene) -> bool:
-            
-            # Embed / EmbedExternal
-            blueprints_from_objects = self.data.blueprints_from_objects
-            blueprint_instances_in_scene = self.data.blueprint_instances_per_main_scene.get(scene_name, None)
-
-            if blueprint_instances_in_scene is not None:
-                changed_objects = [object_name for change in changes_per_scene.values() for object_name in change.keys()] 
-                changed_blueprints = [blueprints_from_objects[changed] for changed in changed_objects if changed in blueprints_from_objects]
-                changed_blueprints_with_instances_in_scene = [blueprint for blueprint in changed_blueprints if blueprint.name in blueprint_instances_in_scene.keys()]
-
-                changed_blueprint_instances= [object for blueprint in changed_blueprints_with_instances_in_scene for object in blueprint_instances_in_scene[blueprint.name]]
-                # print("changed_blueprint_instances", changed_blueprint_instances,)
-
-                level_needs_export = False
-                for blueprint_instance in changed_blueprint_instances:
-                    blueprint = self.data.blueprint_name_from_instances[blueprint_instance]
-                    combine_mode = "Split"
-                    #print("COMBINE MODE FOR OBJECT", combine_mode)
-                    if combine_mode == 'Embed':
-                        level_needs_export = True
-                        break
-                    elif combine_mode == 'EmbedExternal' and not blueprint.local:
-                        level_needs_export = True
-                        break
-                # changes => list of changed objects (regardless of wether they have been changed in main scene or in lib scene)
-                # wich of those objects are blueprint instances
-                # we need a list of changed objects that are blueprint instances
-                return level_needs_export
-            return False
-    
-        # determine list of main scenes to export
-        # we have more relaxed rules to determine if the main scenes have changed : any change is ok, (allows easier handling of changes, render settings etc)
-        main_scenes_to_export = [scene_name for scene_name in level_names if not CHANGE_DETECTION 
-                                or changed_export_parameters 
-                                or scene_name in changes_per_scene.keys() 
-                                or not check_if_blueprint_on_disk(scene_name) ]
-                                #or self.changed_object_in_scene(scene_name, changes_per_scene) 
-                                
-        return main_scenes_to_export
+            #export_attributes=True,
+            #export_shared_accessors=True,
+            #export_hierarchy_flatten_objs=False, # Explore this more
+            #export_texcoords=True, # used by material info and uv sets
+            #export_normals=True,
+            #export_tangents=False,
+            #export_materials
+            #export_colors=True,
+            #use_mesh_edges
+            #use_mesh_vertices
+        )        
+        export_settings = {
+            **export_settings, 
+            **settings,
+            "filepath": gltf_output_path 
+        }
+        # we set our active scene to be this one
+        bpy.context.window.scene = scene              
+        layer_collection = scene.view_layers['ViewLayer'].layer_collection
+        bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, scene.collection.name)
+        bpy.ops.export_scene.gltf(**export_settings)
 
     # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
     def get_blueprints_to_export(self, changes_per_scene, changed_export_parameters) -> list[Blueprint]:
@@ -1768,228 +1781,100 @@ class BevySettings(bpy.types.PropertyGroup):
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
-    # export the scenes, blueprints, materials etc
-    def export(self, changes_per_scene, changed_export_parameters):
+
+
+# https://blender.stackexchange.com/questions/157828/how-to-duplicate-a-certain-collection-using-python
+custom_properties_to_filter_out = ['template', 'components_meta']
+
+# def is_component_valid_and_enabled(object, component_name):
+#     if "components_meta" in object or hasattr(object, "components_meta"):
+#         target_components_metadata = object.components_meta.components
+#         component_meta = next(filter(lambda component: component["long_name"] == component_name, target_components_metadata), None)
+#         if component_meta != None:
+#             return component_meta.enabled and not component_meta.invalid
+#     return True
+
+# will copy the collection without linking, duplicating all objects
+def copy_collection(src_col: bpy.types.Collection, dst_col: bpy.types.Collection):
+    object_map: dict[bpy.types.Object, bpy.types.Object] = dict()
+
+    # copy all objects then fixing parenting instead of recursively copying
+    for o in src_col.all_objects:
+        if o.name.endswith(NAME_BACKUP_SUFFIX + ".001"): 
+            o.name = o.name.replace(NAME_BACKUP_SUFFIX + ".001", "")
+        elif o.name.endswith(NAME_BACKUP_SUFFIX):
+            o.name = o.name.replace(NAME_BACKUP_SUFFIX, "")
         
-        start = time.time()
+        orginal_name = o.name
+        o.name = o.name + NAME_BACKUP_SUFFIX
 
-        # save active scene, selected collection and mode
-        original_scene = bpy.context.window.scene
-        original_collection = bpy.context.view_layer.active_layer_collection        
-        original_mode = bpy.context.active_object.mode if bpy.context.active_object != None else None
-        original_selections = bpy.context.selected_objects
-
-        # we change the mode to object mode, otherwise the gltf exporter is not happy
-        if original_mode != None and original_mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        self.create_dirs()
-        [level_scene_names, level_scenes, library_scene_names, library_scenes] = self.get_scenes()
-
-        # Figure out what to export
-        # update the blueprints registry
-        self.scan_blueprints()
-
-        # we inject the blueprints export path
-        for blueprint in self.data.internal_blueprints:
-            blueprint.collection["export_path"] = os.path.join(self.assets_path, BLUEPRINTS_PATH, f"{blueprint.name}{GLTF_EXTENSION}")           
+        for s in ["Player", "Tia"]:
+            if s in src_col.name:
+                print(f"{src_col.name} - {o.name} - {o.type}")   
         
-        # Create custom compoents based on the scene settings
-        # TODO: should really only create this in the temp scenes created for export, not on the actual scenes then have to clean them up
-        if EXPORT_SCENE_SETTINGS:
-            for scene in level_scenes:
-                lighting_components_name = f"lighting_components_{scene.name}"
-                lighting_components = bpy.data.objects.get(lighting_components_name, None)
-                if not lighting_components:
-                    root_collection = scene.collection
-                    lighting_components = make_empty('lighting_components_'+scene.name, [0,0,0], [0,0,0], [0,0,0], root_collection)
-
-                if scene.world is not None:
-                    lighting_components['BlenderBackgroundShader'] = ambient_color_to_component(scene.world)
-                lighting_components['BlenderShadowSettings'] = scene_shadows_to_component(scene)
-
-                if scene.eevee.use_bloom:
-                    lighting_components['BloomSettings'] = scene_bloom_to_component(scene)
-                elif 'BloomSettings' in lighting_components:
-                    del lighting_components['BloomSettings']
-
-                if scene.eevee.use_gtao: 
-                    lighting_components['SSAOSettings'] = scene_ao_to_component(scene)
-                elif 'SSAOSettings' in lighting_components:
-                    del lighting_components['SSAOSettings']
-                    
-                #inject/ update light shadow information
-                for light in bpy.data.lights:
-                    enabled = 'true' if light.use_shadow else 'false'
-                    light['BlenderLightShadows'] = f"(enabled: {enabled}, buffer_bias: {light.shadow_buffer_bias})"
-
-            # Export blueprints and levels
-            # get blueprints and levels
-            blueprints_to_export = self.get_blueprints_to_export(changes_per_scene, changed_export_parameters)                     
-            levels_to_export = self.get_levels_to_export(changes_per_scene, changed_export_parameters)           
-            used_material_names = self.get_all_materials(library_scenes)      
-            current_project_name = Path(bpy.context.blend_data.filepath).stem
-
-            # update the list of tracked exports
-            exports_total = len(blueprints_to_export) + len((levels_to_export)) + 1  # +1 for the materials library
-            bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
-            bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
-
-            print("-------------------------------")
-            print("Blueprints:  ", len(self.data.internal_blueprints))
-            print("Levels:      ", len(levels_to_export))
-            print("Materials:   ", len(used_material_names))
-            print("")
-   
-        try:           
-            # Export materials to its own glb so they can be shared                        
-            #generates a materials scene: 
-            gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
-            material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
-            for index, material_name in enumerate(used_material_names):
-                object = make_cube("Material_"+material_name, location=[index * 0.2,0,0], rotation=[0,0,0], scale=[1,1,1], scene=material_scene)
-                material = bpy.data.materials[material_name]
-                if material:
-                    if object.data.materials: # assign to 1st material slot
-                        object.data.materials[0] = material
-                    else: # no slots
-                        object.data.materials.append(material)      
-            self.generate_and_export(material_scene, {}, gltf_path)
-
-            # clear material:
-            for object in [o for o in material_scene.collection.objects]:
-                try:
-                    mesh = bpy.data.meshes[object.name+"_Mesh"]
-                    bpy.data.meshes.remove(mesh, do_unlink=True)
-                except Exception as error:
-                    pass
-                try:
-                    bpy.data.objects.remove(object, do_unlink=True)
-                except:pass
-            bpy.data.scenes.remove(material_scene)
-
-            # export levels
-            for scene_name in levels_to_export:                             
-                scene = bpy.data.scenes[scene_name]
-                gltf_path = os.path.join(self.assets_path, LEVELS_PATH, scene.name)    
-                print("exporting level", scene.name, "to", gltf_path)                
-                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+scene_name)  
-                self.copy_hollowed_collection_into(scene.collection, temp_scene.collection)
-                self.generate_and_export(temp_scene, {}, gltf_path)
-                self.clear_hollow_scene(temp_scene, scene.collection)
-
-            # export blueprints
-            blueprints_to_export.sort(key = lambda a: a.name.lower())            
-            blueprint_count = len(blueprints_to_export)
-            for index, blueprint in enumerate(blueprints_to_export):
-                print(f"exporting blueprint ({index}/{blueprint_count}) - {blueprint.name}")
-                gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
-                collection = bpy.data.collections[blueprint.name]
-                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
-                self.copy_hollowed_collection_into(collection, temp_scene.collection)                
-                self.generate_and_export(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
-                self.clear_hollow_scene(temp_scene, collection )                
-
-            # reset scene
-            bpy.context.window.scene = original_scene
-            bpy.context.view_layer.active_layer_collection = original_collection
-            if original_mode != None:
-                bpy.ops.object.mode_set( mode = original_mode )
-            for obj in original_selections:
-                obj.select_set(True)
-                                
-            print(f"Export time: {time.time() - start:.2f}s")         
-
-        except Exception as error:
-            print(traceback.format_exc())
-            def error_message(self, context):
-                self.layout.label(text="Failure during auto_export: Error: "+ str(error))
-
-            bpy.context.window_manager.popup_menu(error_message, title="Error", icon='ERROR')
-
-        finally:
-            # FIXME: error handling ? also redundant
-            if EXPORT_SCENE_SETTINGS:
-                # TODO: IMPORTANT: this where those custom components are removed
-                    for scene in level_scenes:
-                        lighting_components_name = f"lighting_components_{scene.name}"
-                        lighting_components = bpy.data.objects.get(lighting_components_name, None)
-                        if lighting_components:
-                            bpy.data.objects.remove(lighting_components, do_unlink=True)
-
-    #def generate_and_export(self, settings: Dict[str, Any], gltf_output_path, temp_scene_name="__temp_scene", tempScene_filler=None, tempScene_cleaner=None):         
-    def generate_and_export(self, scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_path: str):         
-        # this are our default settings, can be overriden by settings
-        #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
-        export_settings = dict(     
-            log_info=False, # limit the output, was blowing up my console, requires material-info branch version of the io_scene_gltf
-            check_existing=False,
-
-            # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
-            export_apply=True,
-            export_cameras=True,
-            export_extras=True, # For custom exported properties.
-            export_lights=True,            
-            export_yup=True,
-
-            # TODO: add animations back
-            export_animations=False,
-            #export_draco_mesh_compression_enable=True,
-            #export_skins=True,
-            #export_morph=False,
-            #export_optimize_animation_size=False
-
-            # use only one of these at a time
-            use_active_collection_with_nested=True, # these 2
-            use_active_collection=True,
-            use_active_scene=True,
-
-            # other filters
-            use_selection=False,
-            use_visible=False, # Export visible and hidden objects
-            use_renderable=False,
+        dupe = None
+        # we treat all collection instances as Blueprint        
+        if o.instance_type == 'COLLECTION':
+            collection_name = o.instance_collection.name
+            dupe = make_empty(orginal_name, o.location, o.rotation_euler, o.scale)                                            
+            dupe['BlueprintName'] = '("'+collection_name+'")'                                
+            # we copy custom properties over from our original object to our empty
+            for property_name, property_value in o.items():
+                # bevy_components will be copied, dont need the components_meta
+                if property_name == "components_meta":
+                    continue
+                print(f"{orginal_name} - {property_name}: {property_value}")                
+                # this should copy all custom properties over, include the bevy_components
+                dupe[property_name] = property_value     
+                # if property_name not in custom_properties_to_filter_out and is_component_valid_and_enabled(o, property_name): #copy only valid properties
+                #     empty_obj[property_name] = property_value                    
             
-
-            #export_attributes=True,
-            #export_shared_accessors=True,
-            #export_hierarchy_flatten_objs=False, # Explore this more
-            #export_texcoords=True, # used by material info and uv sets
-            #export_normals=True,
-            #export_tangents=False,
-            #export_materials
-            #export_colors=True,
-            #use_mesh_edges
-            #use_mesh_vertices
-        )        
-        export_settings = {
-            **export_settings, 
-            **settings,
-            "filepath": gltf_output_path 
-        }
-        #print("exporting", gltf_output_path, "with settings", export_settings)
-        
-        # we set our active scene to be this one : this is needed otherwise the stand-in empties get generated in the wrong scene                
-        bpy.context.window.scene = scene              
-        layer_collection = scene.view_layers['ViewLayer'].layer_collection
-        bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, scene.collection.name)
-        
-        # wait for 0.1 seconds to make sure the scene is properly set
-        #time.sleep(0.1)
-
-        bpy.ops.export_scene.gltf(**export_settings)
-
-        # area = [area for area in bpy.context.screen.areas if area.type == "VIEW_3D"][0]
-        # region = [region for region in area.regions if region.type == 'WINDOW'][0]
-        # with bpy.context.temp_override(scene=scene, area=area, region=region):
-        #     # detect scene mistmatch            
-        #     if  bpy.context.scene.name != bpy.context.window.scene.name:                
-        #         raise Exception("Context scene mismatch, aborting", bpy.context.scene.name, bpy.context.window.scene.name)            
-            # set active colleciton
-            #layer_collection = scene.view_layers['ViewLayer'].layer_collection
-            #bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, scene.collection.name)
-            # export the temporary scene            
-            #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf
-
+        else:            
+            dupe = o.copy()
+            dupe.name = orginal_name
             
+            # at the point data is linked, so we need to copy it
+            if o.data:
+                dupe.data = dupe.data.copy()
+
+            # remove components_meta
+            to_delete = []
+            for property_name, property_value in dupe.items():
+                if property_name == "components_meta":
+                    to_delete.append(property_name)
+                    continue                    
+                print(f"{orginal_name} - {property_name}: {property_value}")
+
+            for property_name in to_delete:
+                print(f"{orginal_name} - deleting {property_name} from copy")
+                del dupe[property_name]
+
+        dst_col.objects.link(dupe)
+        object_map[o] = dupe
+
+    # now we need to fix the parenting    
+    for src_obj, dst_obj in object_map.items():
+        p = object_map.get(src_obj.parent)
+        if p is not None:
+            dst_obj.parent = p
+
+    # for s in ["Player", "Tia"]:
+    #     if s in src_col.name  :        
+    #         print(f"{src_col.name}")
 
 
+def delete_scene(temp_scene: bpy.types.Scene):
+    # remove any data we created        
+    for object in temp_scene.collection.all_objects:        
+        bpy.data.objects.remove(object, do_unlink=True)
+    bpy.data.scenes.remove(temp_scene, do_unlink=True)
+
+# recursively restore original names
+def restore_original_names(collection: bpy.types.Collection):
+    if collection.name.endswith(NAME_BACKUP_SUFFIX):
+        collection.name = collection.name.replace(NAME_BACKUP_SUFFIX, "")
+    for object in collection.objects:
+        if object.name.endswith(NAME_BACKUP_SUFFIX):
+            object.name = object.name.replace(NAME_BACKUP_SUFFIX, "")        
+    for child_collection in collection.children:
+        restore_original_names(child_collection)

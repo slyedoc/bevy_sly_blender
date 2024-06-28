@@ -1,4 +1,4 @@
-use bevy::{gltf::Gltf, prelude::*};
+use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 use bevy_sly_blender::prelude::*;
 

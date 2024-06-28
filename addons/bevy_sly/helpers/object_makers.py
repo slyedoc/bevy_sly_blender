@@ -3,7 +3,7 @@ import bpy
 import mathutils
 
 # Makes an empty, at the specified location, rotation, scale stores it in existing collection, from https://blender.stackexchange.com/questions/51290/how-to-add-empty-object-not-using-bpy-ops
-def make_empty(name, location, rotation, scale, collection):
+def make_empty(name, location, rotation, scale):
     object_data = None 
     empty_obj = bpy.data.objects.new( name, object_data )
     
@@ -14,8 +14,7 @@ def make_empty(name, location, rotation, scale, collection):
     empty_obj.location = location
     empty_obj.scale = scale
     empty_obj.rotation_euler = rotation
-
-    collection.objects.link( empty_obj )
+    
     #bpy.context.view_layer.update()
     return empty_obj
 

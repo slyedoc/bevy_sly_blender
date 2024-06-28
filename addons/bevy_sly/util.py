@@ -24,6 +24,8 @@ BLUEPRINTS_PATH = "blueprints"
 LEVELS_PATH = "levels"
 MATERIALS_PATH = "materials"
 
+NAME_BACKUP_SUFFIX = "____bak"
+
 BLENDER_PROPERTY_MAPPING = {
     "bool": dict(type=BoolProperty, presets=dict()),
 

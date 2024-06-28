@@ -26,3 +26,7 @@ bevy_xpbd_3d = { version = "0.4", optional = true }
 # iter utils
 strum = { version = "0.26", features = ["derive"] }
 strum_macros = "0.26"
+
+
+[patch.crates-io]
+bevy_xpbd_3d = { path = "../../f/bevy_xpbd/crates/bevy_xpbd_3d/" }

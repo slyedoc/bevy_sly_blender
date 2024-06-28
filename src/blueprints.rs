@@ -220,12 +220,13 @@ impl Command for SpawnBlueprint {
                             if type_id == TypeId::of::<Parent>() {
                                 continue;
                             }
+                            // if type_id == TypeId::of::<GlobalTransform>() {
+                            //     continue;
+                            // }
 
                             // apply the root entity's transform to existing entity
                             // but dont copy it
-                            if type_id == TypeId::of::<GlobalTransform>() {
-                                continue;
-                            }
+
                             if type_id == TypeId::of::<Transform>() {
                                 let name = scene
                                     .world
@@ -240,7 +241,7 @@ impl Command for SpawnBlueprint {
                                     });
 
                                 let new_trans =  trans.mul_transform(scene_trans);
-                                if name.contains("Mother") {
+                                if name.contains("Tia") {
                                     error!("name: {:?}: existing: {:?}, scene: {:?}, new: {:?}", name, trans, scene_trans, new_trans);
                                 }
                                 

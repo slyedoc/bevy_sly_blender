@@ -193,7 +193,7 @@ impl Plugin for BlenderPlugin {
             (
                 spawn_gltf_extras,
                 aabb::compute_scene_aabbs
-                    .run_if(aabbs_enabled.and_then(on_event::<BlueprintSpawned>())),                
+                    .run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())               
                 materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
             )
                 .chain()
@@ -240,30 +240,36 @@ fn spawn_gltf_extras(world: &mut World) {
     // get the added extras
     let extras = world
         .query::<(Entity, &GltfExtras)>()
-        //.query_filtered::<(Entity, &GltfExtras), Added<GltfExtras>>()
         .iter(world)
         .map(|(entity, extra)| (entity.clone(), extra.clone()))
         .collect::<Vec<(Entity, GltfExtras)>>();
 
     if !extras.is_empty() {
+        let tmp_name = Name::new("tmp".to_string());
         // add the components
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();
             for (entity, extra) in &extras {
                 let reflect_components =
                     ronstring_to_reflect_component(&extra.value, &type_registry);
-
+                let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();                
+                if extra.value.contains("orbit::") {
+                    let msg = format!("{} - {}", name.clone(), extra.value)
+                    .replace("\\\"", "\"")
+                    .replace("\"", "");     
+                    dbg!(msg);           
+                }
                 for (component, type_registration) in reflect_components {
-                    //dbg!(entity, &component);
+                    
                     let mut entity_mut = world.entity_mut(*entity);
                     type_registration
                         .data::<ReflectComponent>()
                         .expect("Unable to reflect component")
                         .insert(&mut entity_mut, &*component, &type_registry);
                 }
+
             }
         });
-        //dbg!(&extras);
     }
 
     // remove the extras

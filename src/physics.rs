@@ -1,8 +1,8 @@
 use bevy::{
     math::vec3,
-    transform::TransformSystem::TransformPropagate,
     prelude::*,
     render::mesh::{MeshVertexAttributeId, PrimitiveTopology, VertexAttributeValues},
+    transform::TransformSystem::TransformPropagate,
 };
 use bevy_xpbd_3d::{
     parry::{
@@ -44,20 +44,16 @@ pub(super) fn physics_replace_proxies(
 ) {
     let tmp = Name::new("none");
     for (entity, collider_proxy, name_maybe) in proxy_colliders.iter_mut() {
+        let name = name_maybe.unwrap_or_else(|| &tmp).to_string();
         info!(
             "generating collider for {:?}: {:?}",
-            name_maybe.unwrap_or_else(|| &tmp), collider_proxy
+            name,
+            collider_proxy
         );
         let collider = match collider_proxy {
-            ProxyCollider::Ball(radius) => {
-              Collider::sphere(*radius)
-            }
-            ProxyCollider::Cuboid(size) => {
-                Collider::cuboid(size.x, size.y, size.z)
-            }
-            ProxyCollider::Capsule(height, radius) => {
-                Collider::capsule( *height, *radius)
-            }
+            ProxyCollider::Ball(radius) => Collider::sphere(*radius),
+            ProxyCollider::Cuboid(size) => Collider::cuboid(size.x, size.y, size.z),
+            ProxyCollider::Capsule(height, radius) => Collider::capsule(*height, *radius),
             ProxyCollider::Mesh => {
                 let mut vertices: Vec<OPoint<f32, Const<3>>> = Vec::new();
 
@@ -93,12 +89,18 @@ pub(super) fn physics_replace_proxies(
                         vertices.push(rotated_pos.into());
                     }
                 }
-                let convex: Collider = SharedShape::convex_hull(&vertices).unwrap().into();
+                let convex: Collider = if let Some(shape) = SharedShape::convex_hull(&vertices) {
+                    shape.into()
+                } else {
+                    error!("failed to create convex hull from vertices: {}", name);                    
+                    Collider::sphere(1.0)
+                };
+                //let convex: Collider = SharedShape::convex_hull(&vertices).unwrap().into();
                 convex
             }
             ProxyCollider::Halfspace(v) => {
                 info!("generating collider from proxy: halfspace");
-                Collider::halfspace(*v)
+                Collider::half_space(*v)
             }
         };
         commands.entity(entity).insert(collider);

@@ -42,7 +42,7 @@ Also using small fork of glTF-Blender-IO you can find [here](https://github.com/
 - One Blender file, got enough to troubleshoot without having to worry about multiple files for now
 - Remove configurable gltf export settings, there was a mountain of code for this and the issue has a history all its own, just going with sane defaults but I will need to come back to this
   - Was a little mad when refactoring this out and finally seeing the only setting that changes between calls was ```'export_materials': 'PLACEHOLDER'```
-- Removed change detection, going to focus on worse case and come back to it, right now I get 6.7s for 7 levels and 206 blueprints, (most simple kenney assets). Good enough for now.
+- Removed change detection, going to focus on worse case and come back to it, right now I get about 3 seconds for 7 levels and 206 blueprints, (most simple kenney assets). Good enough for now.
 - Removed asset loading stuff, uses bevy_asset_loader instead [BlenderAssets](./src/assets.rs)
 
 ## Docs

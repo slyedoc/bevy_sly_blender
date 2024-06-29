@@ -1823,7 +1823,7 @@ def copy_collection(src_col: bpy.types.Collection, dst_col: bpy.types.Collection
                 # bevy_components will be copied, dont need the components_meta
                 if property_name == "components_meta":
                     continue
-                print(f"{orginal_name} - {property_name}: {property_value}")                
+                print(f"copy {orginal_name} - {property_name}: {property_value}")                
                 # this should copy all custom properties over, include the bevy_components
                 dupe[property_name] = property_value     
                 # if property_name not in custom_properties_to_filter_out and is_component_valid_and_enabled(o, property_name): #copy only valid properties
@@ -1841,9 +1841,9 @@ def copy_collection(src_col: bpy.types.Collection, dst_col: bpy.types.Collection
             to_delete = []
             for property_name, property_value in dupe.items():
                 if property_name == "components_meta":
-                    to_delete.append(property_name)
-                    continue                    
-                print(f"{orginal_name} - {property_name}: {property_value}")
+                    to_delete.append(property_name)       
+                #else:             
+                #   print(f"{orginal_name} - {property_name}: {property_value}")
 
             for property_name in to_delete:
                 print(f"{orginal_name} - deleting {property_name} from copy")

@@ -241,9 +241,9 @@ impl Command for SpawnBlueprint {
                                     });
 
                                 let new_trans =  trans.mul_transform(scene_trans);
-                                if name.contains("Tia") {
-                                    error!("name: {:?}: existing: {:?}, scene: {:?}, new: {:?}", name, trans, scene_trans, new_trans);
-                                }
+                                //if name.contains("Tia") {
+                                //    error!("name: {:?}: existing: {:?}, scene: {:?}, new: {:?}", name, trans, scene_trans, new_trans);
+                                //}
                                 
                                 *trans = new_trans;
 

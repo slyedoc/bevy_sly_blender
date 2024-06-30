@@ -27,16 +27,18 @@ Also using small fork of glTF-Blender-IO you can find [here](https://github.com/
 - [x] Blueprints always on
 - [X] Material library always on
 - [X] Fix material info
-  - There is no way to know how many meshes io_scene_gltf2 would generate, so creating material info was not really possible.  A complete fix required a patch to [glTF-Blender-IO - material-info](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch that adds a material name as mesh extra, only support one material liberary scene, looked at an extension to io_scene_gltf2, but the mesh hook doesn't receive material information from what I could tell
+  - There is no way to know how many meshes io_scene_gltf2 would generate, so creating material info was not really possible.  A complete fix required a patch to [glTF-Blender-IO - material-info](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch that adds a material name as mesh extra, only support one material library scene, looked at an extension to io_scene_gltf2, but the mesh hook doesn't receive material information from what I could tell
 - [ ] Hot Reloading - kinda broke this since not using bevy_scenes to spawn, for myself I have a f5 hotkey to reload current level in my app
 - [ ] Animations - how bad could it be (jk, its bad)
 - [ ] Simplify component_meta? - its taken a while to get my head how the blender plugin handles and creates components_meta and bevy_components, alot of the complexity comes from keeping many component_meta at a time, and when really only one is ever needed (for the selected object).  If I made that change, would it even need the all the class generation code to handle unique instances
   - [ ] Could help with sync issues with component renames, currently using [script](./scripts/scene_objects.py) to find and delete
+  - [ ] is 1 of 2 reason to copy collections for export, other is to replace collection instances with blueprint object
 - [x] Build script Enums, see [doc](./docs/build.md), this kinda completes the loop to tell bevy what's been exported
 - [x] Physcis - basic enum to xpbd colliders system
   - [ ] [glTF_Physics_Blender_Exporter](https://github.com/eoineoineoin/glTF_Physics_Blender_Exporter) - would require the gltf export settings cache and expand bevy_gltf
 - [x] [Edit Collection Instance](./addons/bevy_sly/operators/edit_collection.py) is huge QOL improvement, can quickly edit a blueprint by right-clicking collection instance and selecting edit and edit in in a clean scene without having to manage visibility of everything in the library scene
-- [x] limited 
+- [x] limited scene settings component generation to copy only
+
 ## Restrictions
 
 - One Blender file, got enough to troubleshoot without having to worry about multiple files for now

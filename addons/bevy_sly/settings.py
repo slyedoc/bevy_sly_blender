@@ -304,7 +304,7 @@ class BevySettings(bpy.types.PropertyGroup):
     
         # get blueprints
         self.scan_blueprints(level_scenes, library_scenes)
-        blueprints_to_export = self.get_blueprints_to_export(library_scenes)                                     
+        blueprints_to_export = self.get_blueprints_to_export()                                     
         blueprints_to_export.sort(key = lambda a: a.name.lower())
         blueprint_count = len(blueprints_to_export)
 
@@ -312,7 +312,7 @@ class BevySettings(bpy.types.PropertyGroup):
         current_project_name = Path(bpy.context.blend_data.filepath).stem
 
         # update the list of tracked exports
-        exports_total = len(blueprints_to_export) + level_count + 1  # +1 for the materials library
+        exports_total = blueprint_count + level_count + 1  # +1 for the materials library
         bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
         bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
@@ -323,7 +323,7 @@ class BevySettings(bpy.types.PropertyGroup):
         print("-------------------------------")
 
         try:           
-            # Export materials
+            # Export materials by creating scene with a cube for each material then save it
             gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
             material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
             for index, material_name in enumerate(used_material_names):
@@ -337,15 +337,23 @@ class BevySettings(bpy.types.PropertyGroup):
             self.export_scene(material_scene, {}, gltf_path)
 
             # delete material scene:
-            for object in [o for o in material_scene.collection.objects]:
-                try:
-                    mesh = bpy.data.meshes[object.name+"_Mesh"]
-                    bpy.data.meshes.remove(mesh, do_unlink=True)
-                except: pass
-                try:
-                    bpy.data.objects.remove(object, do_unlink=True)
-                except: pass
+            for o in material_scene.collection.objects:            
+                if o.type == 'MESH':
+                     print("removing mesh", o.name)
+                     mesh = bpy.data.meshes[o.name+"_Mesh"]
+                     bpy.data.meshes.remove(mesh, do_unlink=True)
+                else:
+                     bpy.data.objects.remove(object, do_unlink=True)
             bpy.data.scenes.remove(material_scene)
+
+            # for object in material_scene.collection.all_objects:
+            #     try:
+            #         mesh = bpy.data.meshes[object.name+"_Mesh"]
+            #         bpy.data.meshes.remove(mesh, do_unlink=True)
+            #     except: pass
+            #     try:
+            #         bpy.data.objects.remove(object, do_unlink=True)
+            #     except: pass
 
             # export levels
             for index, level_scene in enumerate(level_scenes):                                                             
@@ -1662,9 +1670,8 @@ class BevySettings(bpy.types.PropertyGroup):
         bpy.ops.export_scene.gltf(**export_settings)
 
     # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
-    def get_blueprints_to_export(self, library_scenes: list[bpy.types.Scene]) -> list[Blueprint]:        
-        blueprints_to_export = []
-
+    def get_blueprints_to_export(self) -> list[Blueprint]:        
+        blueprints_to_export = self.data.internal_blueprints
 
         # if the export parameters have changed, bail out early
         # we need to re_export everything if the export parameters have been changed
@@ -1695,7 +1702,7 @@ class BevySettings(bpy.types.PropertyGroup):
 
         #     blueprints_to_export = list(set(changed_blueprints + blueprints_not_on_disk))
         # else:
-        blueprints_to_export = self.data.internal_blueprints
+        #    blueprints_to_export = self.data.internal_blueprints
 
         # filter out blueprints that are not marked & deal with the different combine modes
         # we check for blueprint & object specific overrides ...
@@ -1707,15 +1714,13 @@ class BevySettings(bpy.types.PropertyGroup):
                 blueprint_instances = self.data.internal_collection_instances.get(blueprint.name, [])
                 # print("INSTANCES", blueprint_instances, blueprints_data.internal_collection_instances)
                 # marked blueprints that have changed are always exported, regardless of whether they are in use (have instances) or not 
-                for blueprint_instance in blueprint_instances:
+                if len(blueprint_instances) > 0:
                     # combine_mode = blueprint_instance['_combine'] if '_combine' in blueprint_instance else self.collection_instances_combine_mode
                     # if combine_mode == "Split": # we only keep changed blueprints if mode is set to split for at least one instance (aka if ALL instances of a blueprint are merged, do not export ? )  
                     filtered_blueprints.append(blueprint)
 
-            blueprints_to_export =  list(set(filtered_blueprints))
+        return  list(set(filtered_blueprints))
         
-        # changed/all blueprints to export     
-        return blueprints_to_export
 
     # set MaterialInfo for export, and returns list of used materials
     def get_all_materials(self, library_scenes) -> list[str]: 

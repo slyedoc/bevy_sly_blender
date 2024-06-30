@@ -35,8 +35,8 @@ Also using small fork of glTF-Blender-IO you can find [here](https://github.com/
 - [x] Build script Enums, see [doc](./docs/build.md), this kinda completes the loop to tell bevy what's been exported
 - [x] Physcis - basic enum to xpbd colliders system
   - [ ] [glTF_Physics_Blender_Exporter](https://github.com/eoineoineoin/glTF_Physics_Blender_Exporter) - would require the gltf export settings cache and expand bevy_gltf
-- [x] [Edit Collection Instance](./addons/bevy_sly/operators/edit_collection.py) is huge WOL improvement, can quickly edit a blueprint by right-clicking collection instance and selecting edit and edit in in a clean scene without having to manage visibility of everything in the library scene
-
+- [x] [Edit Collection Instance](./addons/bevy_sly/operators/edit_collection.py) is huge QOL improvement, can quickly edit a blueprint by right-clicking collection instance and selecting edit and edit in in a clean scene without having to manage visibility of everything in the library scene
+- [x] limited 
 ## Restrictions
 
 - One Blender file, got enough to troubleshoot without having to worry about multiple files for now

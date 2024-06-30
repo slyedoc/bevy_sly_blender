@@ -73,9 +73,9 @@ class AutoExportGLTF(bpy.types.Operator):
 
         return changed
     
-    def did_objects_change(self):
-        # FIXME: add it back
-        return {}
+    # def did_objects_change(self):
+    #     # FIXME: add it back
+    #     return {}
 
     def execute(self, context):        
         bevy = context.window_manager.bevy # type: BevySettings
@@ -88,13 +88,13 @@ class AutoExportGLTF(bpy.types.Operator):
             #changes_per_scene = context.window_manager.auto_export_tracker.changed_objects_per_scene
             #& do the export
             # determine changed objects
-            changes_per_scene = self.did_objects_change()
+            #changes_per_scene = self.did_objects_change()
             # determine changed parameters 
             # TODO: Assming true for now
-            params_changed = self.did_export_settings_change()
+            #params_changed = self.did_export_settings_change()
             
             # do the export
-            bevy.export(changes_per_scene, params_changed)
+            bevy.export() #changes_per_scene, params_changed
             
             # cleanup 
             # reset the list of changes in the tracker

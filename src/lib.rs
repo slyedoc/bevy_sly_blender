@@ -245,20 +245,21 @@ fn spawn_gltf_extras(world: &mut World) {
         .collect::<Vec<(Entity, GltfExtras)>>();
 
     if !extras.is_empty() {
-        let tmp_name = Name::new("tmp".to_string());
+        
         // add the components
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();
             for (entity, extra) in &extras {
                 let reflect_components =
                     ronstring_to_reflect_component(&extra.value, &type_registry);
-                let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();                
-                if extra.value.contains("orbit::") {
-                    let msg = format!("{} - {}", name.clone(), extra.value)
-                    .replace("\\\"", "\"")
-                    .replace("\"", "");     
-                    dbg!(msg);           
-                }
+                //let tmp_name = Name::new("tmp".to_string());
+                //let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();                
+                // if extra.value.contains("orbit::") {
+                //     let msg = format!("{} - {}", name.clone(), extra.value)
+                //     .replace("\\\"", "\"")
+                //     .replace("\"", "");     
+                //     dbg!(msg);           
+                // }
                 for (component, type_registration) in reflect_components {
                     
                     let mut entity_mut = world.entity_mut(*entity);

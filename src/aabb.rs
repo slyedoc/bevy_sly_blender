@@ -13,7 +13,7 @@ pub fn compute_scene_aabbs(
 ) {
     for e in spawn_events.read() {
         if let Ok((root_entity, name)) = root_entities.get(e.0) {
-            info!("generate aabb for {:?} {:?}", name, e);
+            debug!("generate aabb for {:?} {:?}", name, e);
 
             // only recompute aabb if it has not already been done before
             if blueprints_config.aabb_cache.contains_key(&name.to_string()) {

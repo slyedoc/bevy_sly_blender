@@ -266,6 +266,7 @@ class BevySettings(bpy.types.PropertyGroup):
             ("gray", "Gray", "Solid Gray Background"),
             ("none", "None", "No World/background (black)")
         ],
+        default="gray",
         update=save_settings    
     ) # type: ignore
 

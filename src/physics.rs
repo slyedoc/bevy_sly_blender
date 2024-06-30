@@ -53,7 +53,7 @@ pub(super) fn physics_replace_proxies(
         let inverse_scale = 1.0 / root.scale;
         
 
-        info!(
+        debug!(
             "generating collider for {:?}: {:?}",
             name,
             collider_proxy
@@ -102,8 +102,7 @@ pub(super) fn physics_replace_proxies(
                 //let convex: Collider = SharedShape::convex_hull(&vertices).unwrap().into();
                 convex
             }
-            ProxyCollider::Halfspace(v) => {
-                info!("generating collider from proxy: halfspace");
+            ProxyCollider::Halfspace(v) => {                
                 Collider::half_space(*v)
             }
         };

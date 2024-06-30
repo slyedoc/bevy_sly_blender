@@ -286,7 +286,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
         #                                 row = scene_assets_panel.row()
         #                                 draw_assets(layout=row, name=blueprint.name, title=f"{blueprint.name} Assets", asset_registry=asset_registry, assets=blueprint_assets, target_type="BLUEPRINT", target_name=blueprint.name)
         # """
-            case "COMPONENTS":        
+            case "COMPONENTS":
                 name = context.object.name if context.object != None else ''
                 row.label(text="Components For "+ name)
                 row = layout.row()
@@ -415,34 +415,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                 else: 
                     layout.label(text ="Select an object to edit its components")
-            # case "BLUEPRINTS":        
-            #     for blueprint in bevy.blueprints_list:
-
-            #         row.label(icon="RIGHTARROW")
-            #         row.label(text=blueprint.name)
-
-            #         if blueprint.local:
-                        
-            #             select_blueprint = row.operator(operator="blueprint.select", text="", icon="RESTRICT_SELECT_OFF")
-                        
-            #             if blueprint.collection and blueprint.collection.name:
-            #                 select_blueprint.blueprint_collection_name = blueprint.collection.name
-            #             select_blueprint.blueprint_scene_name = blueprint.scene.name
-
-            #             #user_assets = getattr(blueprint.collection, 'user_assets', [])
-            #             #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name)
-
-            #         else:
-            #             #user_assets = getattr(blueprint.collection, 'user_assets', [])
-            #             #draw_assets(layout=layout, name=blueprint.name, title="Assets", asset_registry=asset_registry, user_assets=user_assets, target_type="BLUEPRINT", target_name=blueprint.name, editable=False)
-            #             row.label(text="External")
-
             case "SETTINGS":
-                # header, panel = layout.panel("common", default_closed=False)
-                # header.label(text="Common")
-        
-                # row = panel.row()
-
                 row = layout.row()
                 row.label(text="Assets Folder")
                 col = row.column()
@@ -456,8 +429,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 col = row.column()
                 col.enabled = False                        
                 col.prop(data=bevy, property="registry_file", text="")
-                file_selector = row.operator(OT_OpenRegistryFileBrowser.bl_idname, icon="FILE", text="")
-                #file_selector.target_property = "assets_path"
+                row.operator(OT_OpenRegistryFileBrowser.bl_idname, icon="FILE", text="")
 
                 row = layout.row()
                 row.label(text="Reload Register")
@@ -521,6 +493,12 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
                 remove_operator.action = 'REMOVE'
                 remove_operator.scene_type = 'LIBRARY'
                 col.separator()
+
+                row = layout.row()
+                row.label(text="Collection Instace Background")
+                row.prop(bevy, 'edit_collection_world_texture', text="Collection Instace Background")
+
+
             case "TOOLS":
 
                 layout.label(text="Missing types ")

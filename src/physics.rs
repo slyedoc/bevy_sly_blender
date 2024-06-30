@@ -39,12 +39,20 @@ pub(super) fn physics_replace_proxies(
         (Without<Collider>, Added<ProxyCollider>),
     >,
     children: Query<&Children>,
-    global_transforms: Query<&GlobalTransform>,
+    global_transforms: Query<&GlobalTransform>,    
     mut commands: Commands,
 ) {
     let tmp = Name::new("none");
     for (entity, collider_proxy, name_maybe) in proxy_colliders.iter_mut() {
         let name = name_maybe.unwrap_or_else(|| &tmp).to_string();
+
+        // Compute the inverse translation and rotation
+        let p_global = global_transforms.get(entity).unwrap();
+        let root = p_global.compute_transform();
+        let inverse_rotation = root.rotation.conjugate(); 
+        let inverse_scale = 1.0 / root.scale;
+        
+
         info!(
             "generating collider for {:?}: {:?}",
             name,
@@ -55,40 +63,36 @@ pub(super) fn physics_replace_proxies(
             ProxyCollider::Cuboid(size) => Collider::cuboid(size.x, size.y, size.z),
             ProxyCollider::Capsule(height, radius) => Collider::capsule(*height, *radius),
             ProxyCollider::Mesh => {
+                // collect all vertices from children and calculate the convex hull from them
+                // in order to handle nesting we use there global transforms project to world space 
+                // then back to local space relative entity with ProxyCollider::Mesh
                 let mut vertices: Vec<OPoint<f32, Const<3>>> = Vec::new();
 
-                // Compute the inverse translation and rotation
-                let p_global = global_transforms.get(entity).unwrap();
-                let root = p_global.compute_transform();
-                let inverse_rotation = root.rotation.conjugate(); // In Bevy, rotation.conjugate() should give you the inverse for unit quaternions.
-
-                let mut sub_meshes =
-                    Mesh::search_in_children(entity, &children, &meshes, &mesh_handles);
-                // check self for mesh
+                let mut sub_meshes = Mesh::search_in_children(entity, &children, &meshes, &mesh_handles);
+                // check self for mesh, not used currently
                 if let Ok(handle) = mesh_handles.get(entity) {
-                    if let Some(mesh) = meshes.get(handle) {
-                        error!("mesh found in entity: {:?}", entity);
+                    if let Some(mesh) = meshes.get(handle) {                        
                         sub_meshes.push((entity, mesh));
                     }
                 }
-
+                
                 for (e, mesh) in sub_meshes {
-                    let c_global = global_transforms.get(e).unwrap();
-
-                    // Apply inverse rotation and then inverse translation
-                    //dbg!(p_trans.translation);
+                    let child_global_transform = global_transforms.get(e).unwrap();
+                    
                     for v in mesh.read_coords(Mesh::ATTRIBUTE_POSITION) {
-                        let p = vec3(v[0], v[1], v[2]);
+                        let mut pos = vec3(v[0], v[1], v[2]);
 
-                        // in vert in world space
-                        let world_pos = c_global.transform_point(p);
+                        // convert to world space
+                        pos = child_global_transform.transform_point(pos);
 
-                        // apply inverse rotation then inverse translation, to get the vert in local space
-                        let rotated_pos = inverse_rotation * (world_pos - root.translation);
-
-                        vertices.push(rotated_pos.into());
+                        // convert to local space realive to entity
+                        pos = inverse_rotation * (pos - root.translation);                        
+                        pos *= inverse_scale;
+                                            
+                        vertices.push(pos.into());
                     }
                 }
+
                 let convex: Collider = if let Some(shape) = SharedShape::convex_hull(&vertices) {
                     shape.into()
                 } else {

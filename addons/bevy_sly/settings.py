@@ -334,7 +334,7 @@ class BevySettings(bpy.types.PropertyGroup):
                         object.data.materials[0] = material
                     else: # no slots
                         object.data.materials.append(material)      
-            self.export_scene(material_scene, {}, gltf_path)
+            export_scene(material_scene, {}, gltf_path)
 
             # delete material scene:
             for o in material_scene.collection.objects:            
@@ -363,7 +363,7 @@ class BevySettings(bpy.types.PropertyGroup):
                 copy_collection(level_scene.collection, temp_scene.collection)
                 if EXPORT_SCENE_SETTINGS:
                     add_scene_settings(temp_scene)
-                self.export_scene(temp_scene, {}, gltf_path)
+                export_scene(temp_scene, {}, gltf_path)
                 delete_scene(temp_scene)
                 restore_original_names(level_scene.collection)
  
@@ -374,7 +374,7 @@ class BevySettings(bpy.types.PropertyGroup):
                 collection = bpy.data.collections[blueprint.name]
                 temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
                 copy_collection(collection, temp_scene.collection)
-                self.export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
+                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
                 delete_scene(temp_scene )                
                 restore_original_names(collection)
 
@@ -1614,60 +1614,7 @@ class BevySettings(bpy.types.PropertyGroup):
         self.type_data.long_names_to_propgroup_names[key] = propGroupName
         return propGroupName
 
-    # export scene to gltf with io_scene_gltf
-    def export_scene(self, scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_path: str):
 
-        # this are our default settings, can be overriden by settings
-        #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
-        export_settings = dict(     
-            log_info=False, # limit the output, was blowing up my console, requires material-info branch version of the io_scene_gltf
-            check_existing=False,
-
-            # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
-            export_apply=True,
-            export_cameras=True,
-            export_extras=True, # For custom exported properties.
-            export_lights=True,            
-            export_yup=True,
-
-            # TODO: add animations back
-            export_animations=False,
-            #export_draco_mesh_compression_enable=True,
-            #export_skins=True,
-            #export_morph=False,
-            #export_optimize_animation_size=False
-
-            # use only one of these at a time
-            use_active_collection_with_nested=True, # these 2
-            use_active_collection=True,
-            use_active_scene=True, 
-
-            # other filters
-            use_selection=False,
-            use_visible=False, # Export visible and hidden objects
-            use_renderable=False,
-            
-            #export_attributes=True,
-            #export_shared_accessors=True,
-            #export_hierarchy_flatten_objs=False, # Explore this more
-            #export_texcoords=True, # used by material info and uv sets
-            #export_normals=True,
-            #export_tangents=False,
-            #export_materials
-            #export_colors=True,
-            #use_mesh_edges
-            #use_mesh_vertices
-        )        
-        export_settings = {
-            **export_settings, 
-            **settings,
-            "filepath": gltf_output_path 
-        }
-        # we set our active scene to be this one
-        bpy.context.window.scene = scene              
-        layer_collection = scene.view_layers['ViewLayer'].layer_collection
-        bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, scene.collection.name)
-        bpy.ops.export_scene.gltf(**export_settings)
 
     # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
     def get_blueprints_to_export(self) -> list[Blueprint]:        
@@ -1743,6 +1690,61 @@ class BevySettings(bpy.types.PropertyGroup):
             folder = os.path.join(self.assets_path, path)
             if not os.path.exists(folder):
                 os.makedirs(folder)
+
+# export scene to gltf with io_scene_gltf
+def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_path: str):
+
+    # this are our default settings, can be overriden by settings
+    #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
+    export_settings = dict(     
+        log_info=False, # limit the output, was blowing up my console, requires material-info branch version of the io_scene_gltf
+        check_existing=False,
+
+        # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
+        export_apply=True,
+        export_cameras=True,
+        export_extras=True, # For custom exported properties.
+        export_lights=True,            
+        export_yup=True,
+
+        # TODO: add animations back
+        export_animations=False,
+        #export_draco_mesh_compression_enable=True,
+        #export_skins=True,
+        #export_morph=False,
+        #export_optimize_animation_size=False
+
+        # use only one of these at a time
+        use_active_collection_with_nested=False, # these 2
+        use_active_collection=False,
+        use_active_scene=True, 
+
+        # other filters
+        use_selection=False,
+        use_visible=False, # Export visible and hidden objects
+        use_renderable=False,
+        
+        #export_attributes=True,
+        #export_shared_accessors=True,
+        #export_hierarchy_flatten_objs=False, # Explore this more
+        #export_texcoords=True, # used by material info and uv sets
+        #export_normals=True,
+        #export_tangents=False,
+        #export_materials
+        #export_colors=True,
+        #use_mesh_edges
+        #use_mesh_vertices
+    )        
+    export_settings = {
+        **export_settings, 
+        **settings,
+        "filepath": gltf_output_path 
+    }
+    # we set our active scene to be this one
+    bpy.context.window.scene = scene              
+    layer_collection = scene.view_layers['ViewLayer'].layer_collection
+    bpy.context.view_layer.active_layer_collection = recurLayerCollection(layer_collection, scene.collection.name)
+    bpy.ops.export_scene.gltf(**export_settings)
 
 
 

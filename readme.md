@@ -41,6 +41,7 @@ Also using small fork of glTF-Blender-IO you can find [here](https://github.com/
 
 ## Restrictions
 
+- Collection Instances(Blueprints) are required to have 1 root object, no base level children.  This is because component_meta is based on object and not collection, if that changes, this restriction can be lifted
 - One Blender file, got enough to troubleshoot without having to worry about multiple files for now
 - Remove configurable gltf export settings, there was a mountain of code for this and the issue has a history all its own, just going with sane defaults but I will need to come back to this
   - Was a little mad when refactoring this out and finally seeing the only setting that changes between calls was ```'export_materials': 'PLACEHOLDER'```

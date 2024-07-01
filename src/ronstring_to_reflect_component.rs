@@ -5,24 +5,20 @@ use bevy::utils::HashMap;
 use ron::Value;
 use serde::de::DeserializeSeed;
 
-
-
 pub fn ronstring_to_reflect_component(
     ron_string: &str,
     type_registry: &TypeRegistry,
 ) -> Vec<(Box<dyn Reflect>, TypeRegistration)> {
     let lookup: HashMap<String, Value> = ron::from_str(ron_string).unwrap();
     let mut components: Vec<(Box<dyn Reflect>, TypeRegistration)> = Vec::new();
-    // if ron_string.contains("bevy_components") {        
+    // if ron_string.contains("bevy_components") {
     //     dbg!(ron_string, &lookup);
     // }
-    
+
     for (name, value) in lookup.into_iter() {
         //info!("{:?}: {:?}", &name, &value);
         let parsed_value: String = match value.clone() {
-            Value::String(str) => {
-                str
-            }
+            Value::String(str) => str,
             _ => ron::to_string(&value).unwrap().to_string(),
         };
 
@@ -70,7 +66,7 @@ fn components_string_to_components(
         println!("serialized Component {}", serialized);*/
 
         debug!("component data ron string {}", ron_string);
-        
+
         let mut deserializer = ron::Deserializer::from_str(ron_string.as_str())
             .expect("deserialzer should have been generated from string");
         let reflect_deserializer = UntypedReflectDeserializer::new(type_registry);
@@ -87,10 +83,21 @@ fn components_string_to_components(
         debug!("real type {:?}", component.get_represented_type_info());
         components.push((component, type_registration.clone()));
         debug!("found type registration for {}", capitalized_type_name);
-    } else {        
+    } else {
         // Components_meta self made, rest are 3rd party plugins in blender I have
-        let ignore = vec!["Components_meta", "Plating_generator", "Shipwright_collection", "Shape_generator_collection"];
-        if !ignore.contains(&capitalized_type_name.as_str()) {
+        let ignore = vec![
+            // our selfs
+            "Components_meta",
+            // shipwright_collection
+            "Plating_generator",
+            "Shipwright_collection",
+            "Shape_generator_collection",
+            // 3d space ships
+            "MaxHandle",
+            "Mr displacement",
+            "MapChannel:1"
+        ];
+        if !ignore.iter().any(|s| capitalized_type_name.contains(s)) {
             warn!("no type registration for {}", capitalized_type_name);
         }
     }
@@ -105,9 +112,7 @@ fn bevy_components_string_to_components(
     for (key, value) in lookup.into_iter() {
         //info!("----- {:?}: {:?}", &key, &value);
         let parsed_value: String = match value.clone() {
-            Value::String(str) => {
-                str
-            }
+            Value::String(str) => str,
             _ => ron::to_string(&value).unwrap().to_string(),
         };
 

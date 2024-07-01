@@ -280,11 +280,25 @@ class BevySettings(bpy.types.PropertyGroup):
     @classmethod
     def unregister(cls):
         pass
+    
+    @classmethod
+    def save_handler(self, scene, depsgraph):
+        print("saved", bpy.data.filepath)
+        # auto_export(changes_per_scene, export_parameters_changed)
+        bpy.ops.export_scenes.auto_gltf()
+
+        # # (re)set a few things after exporting
+        # # reset wether the gltf export paramters were changed since the last save 
+        # cls.export_params_changed = False
+        
+        # # reset whether there have been changed objects since the last save 
+        # cls.changed_objects_per_scene.clear()
+        # all our logic is done, mark this as done
 
     # export the scenes, blueprints, materials etc
     def export(self): # , changes_per_scene, changed_export_parameters
         
-        start = time.time()
+        util = time.time()
 
         # save active scene, selected collection and mode
         original_scene = bpy.context.window.scene
@@ -314,8 +328,8 @@ class BevySettings(bpy.types.PropertyGroup):
 
         # update the list of tracked exports
         exports_total = blueprint_count + level_count + 1  # +1 for the materials library
-        bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
-        bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
+        #bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
+        #bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
         print("-------------------------------")
         print("Blueprints:  ", len(self.data.internal_blueprints))
@@ -323,8 +337,11 @@ class BevySettings(bpy.types.PropertyGroup):
         print("Materials:   ", len(used_material_names))
         print("-------------------------------")
 
+        util =  time.time() - util
+
         try:           
             # Export materials by creating scene with a cube for each material then save it
+            material_time = time.time()
             gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
             material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
             for index, material_name in enumerate(used_material_names):
@@ -346,17 +363,11 @@ class BevySettings(bpy.types.PropertyGroup):
                 else:
                      bpy.data.objects.remove(object, do_unlink=True)
             bpy.data.scenes.remove(material_scene)
+            material_time =  time.time() - material_time
 
-            # for object in material_scene.collection.all_objects:
-            #     try:
-            #         mesh = bpy.data.meshes[object.name+"_Mesh"]
-            #         bpy.data.meshes.remove(mesh, do_unlink=True)
-            #     except: pass
-            #     try:
-            #         bpy.data.objects.remove(object, do_unlink=True)
-            #     except: pass
 
             # export levels
+            level_time = time.time()
             for index, level_scene in enumerate(level_scenes):                                                             
                 print(f"exporting level {index+1}/{level_count}) - {level_scene.name}")                
                 gltf_path = os.path.join(self.assets_path, LEVELS_PATH, level_scene.name)    
@@ -367,8 +378,10 @@ class BevySettings(bpy.types.PropertyGroup):
                 export_scene(temp_scene, {}, gltf_path)
                 delete_scene(temp_scene)
                 restore_original_names(level_scene.collection)
+            level_time =  time.time() - level_time
  
-            # export blueprints    
+            # export blueprints 
+            blueprint_time = time.time()
             for index, blueprint in enumerate(blueprints_to_export):
                 print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
                 gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
@@ -379,6 +392,7 @@ class BevySettings(bpy.types.PropertyGroup):
                 delete_scene(temp_scene )                
                 restore_original_names(collection)
 
+            blueprint_time =  time.time() - blueprint_time
             # reset scene
             bpy.context.window.scene = original_scene
             bpy.context.view_layer.active_layer_collection = original_collection
@@ -393,7 +407,15 @@ class BevySettings(bpy.types.PropertyGroup):
                 self.layout.label(text="Failure during auto_export: Error: "+ str(error))
             bpy.context.window_manager.popup_menu(error_message, title="Error", icon='ERROR')
 
-        print(f"Export time: {time.time() - start:.2f}s")       
+        total = util + material_time + level_time + blueprint_time
+        print(f"Export Timings:")
+        print(f"Util        : {util:.2f}s {util/total:.2f}%")       
+        print(f"Materials   : {material_time:.2f}s {material_time/total:.2f}%")
+        print(f"Levels      : {level_time:.2f}s {level_time/total:.2f}%")
+        print(f"Blueprints  : {blueprint_time:.2f}s {blueprint_time/total:.2f}%")
+        print(f"            ---------------------------")
+        print(f"Total       : {total:.2f}s")
+
 
     @classmethod
     def get_all_modes(cls):

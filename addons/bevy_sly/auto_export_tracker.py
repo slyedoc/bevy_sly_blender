@@ -10,25 +10,6 @@ from .util import TEMPSCENE_PREFIX
 
 class AutoExportTracker(PropertyGroup):
 
-    changed_objects_per_scene = {}
-    change_detection_enabled = True
-    export_params_changed = False
-
-    gltf_settings_backup = None
-    last_operator = None
-    dummy_file_path = ""
-
-    exports_total : IntProperty(
-        name='exports_total',
-        description='Number of total exports',
-        default=0
-    ) # type: ignore
-
-    exports_count : IntProperty(
-        name='exports_count',
-        description='Number of exports in progress',
-        default=0
-    ) # type: ignore
 
     @classmethod
     def register(cls):

@@ -68,7 +68,7 @@ classes = [
     RenameHelper,
     ComponentMetadata,
     ComponentsMeta,
-    AutoExportTracker, 
+    #AutoExportTracker, 
 
     #UI
     BEVY_PT_SidePanel,
@@ -109,21 +109,24 @@ classes = [
 ]
 
 # Called when basiclly anything changes
-@persistent
+# @persistent
 def post_update(scene, depsgraph):
-    
-    auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
-    auto_export_tracker.deps_post_update_handler( scene, depsgraph)
+    print("\npost_update\n");
+    #auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+    #auto_export_tracker.deps_post_update_handler( scene, depsgraph)
 
 @persistent
 def post_save(scene, depsgraph):
     print("\npost_save\n");
-    auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
-    auto_export_tracker.save_handler( scene, depsgraph)
+#     auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
+    bevy = bpy.context.window_manager.bevy # type: BevySettings    
+    bevy.save_handler( scene, depsgraph)
+    # Could we just call bevy export directly without the operation that does the same thing
+    #bevy.export()
 
 @persistent
 def post_load(file_name):
-    print("loaded blend file")
+    #print("loaded blend file")
     bevy = bpy.context.window_manager.bevy # type: BevySettings    
     bevy.load_settings()
     
@@ -163,7 +166,7 @@ def register():
     bpy.types.WindowManager.components_list = bpy.props.PointerProperty(type=ComponentDefinitionsList)    
     bpy.types.WindowManager.bevy_component_rename_helper = bpy.props.PointerProperty(type=RenameHelper)
     bpy.types.WindowManager.components_rename_progress = bpy.props.FloatProperty(default=-1.0) #bpy.props.PointerProperty(type=RenameHelper)
-    bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
+    #bpy.types.WindowManager.auto_export_tracker = PointerProperty(type=AutoExportTracker)
 
     bpy.app.handlers.load_post.append(post_load)    
     bpy.app.handlers.depsgraph_update_post.append(post_update)
@@ -195,7 +198,7 @@ def unregister():
     del bpy.types.WindowManager.components_list
     del bpy.types.WindowManager.bevy_component_rename_helper
     del bpy.types.WindowManager.components_rename_progress
-    del bpy.types.WindowManager.auto_export_tracker
+    #del bpy.types.WindowManager.auto_export_tracker
 
     # figure out what this was doing
     #components_registry = bpy.types.WindowManager.components_registry # type: ComponentsRegistry

@@ -14,8 +14,8 @@ debug_objects = list(["Falcon"]) # ["*"] for all objects
 # List of properties to delete if found on object
 delete_props = list(["shipwright_collection", "plating_generator", "shape_generator_collection", "MaterialInfo"]) 
 
-delete_bevy_components = list(["orbit::components::proxy_collider::ProxyCollider" ])
-debug_bevy_components = list(["Proxy"]) # ["*"] for all objects
+delete_bevy_components = list([])
+debug_bevy_components = list(["LevelSettings"]) # ["*"] for all objects
 
 # List of components to delete if found in components_meta
 delete_meta_components = list(["bevy_gltf_blueprints::materials::MaterialInfo"])

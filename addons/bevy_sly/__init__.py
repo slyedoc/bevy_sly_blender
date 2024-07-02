@@ -223,7 +223,10 @@ def unregister():
     #del bpy.types.WindowManager.components_registry
     
     bpy.app.handlers.load_post.remove(post_load)
-    bpy.app.handlers.depsgraph_update_post.remove(post_update)
+    # not sure why this errors
+    try:
+        bpy.app.handlers.depsgraph_update_post.remove(post_update)
+    except: pass
     bpy.app.handlers.save_post.remove(post_save)
 
     # Remove menu items

@@ -327,14 +327,14 @@ class BevySettings(bpy.types.PropertyGroup):
         current_project_name = Path(bpy.context.blend_data.filepath).stem
 
         # update the list of tracked exports
-        exports_total = blueprint_count + level_count + 1  # +1 for the materials library
+        #exports_total = blueprint_count + level_count + 1  # +1 for the materials library
         #bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
         #bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
         print("-------------------------------")
-        print("Blueprints:  ", len(self.data.internal_blueprints))
-        print("Levels:      ", level_count)
-        print("Materials:   ", len(used_material_names))
+        print("Materials    : ", len(used_material_names))        
+        print("Levels       : ", level_count)
+        print("Blueprints   : ", len(self.data.internal_blueprints))        
         print("-------------------------------")
 
         util =  time.time() - util
@@ -342,6 +342,7 @@ class BevySettings(bpy.types.PropertyGroup):
         try:           
             # Export materials by creating scene with a cube for each material then save it
             material_time = time.time()
+            print(f"exporting materials (1/1) - {current_project_name}")
             gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
             material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
             for index, material_name in enumerate(used_material_names):
@@ -352,12 +353,13 @@ class BevySettings(bpy.types.PropertyGroup):
                         object.data.materials[0] = material
                     else: # no slots
                         object.data.materials.append(material)      
+            material_gltf_time = time.time()
             export_scene(material_scene, {}, gltf_path)
+            material_gltf_time = time.time() - material_gltf_time
 
             # delete material scene:
             for o in material_scene.collection.objects:            
-                if o.type == 'MESH':
-                     print("removing mesh", o.name)
+                if o.type == 'MESH':                     
                      mesh = bpy.data.meshes[o.name+"_Mesh"]
                      bpy.data.meshes.remove(mesh, do_unlink=True)
                 else:
@@ -368,6 +370,7 @@ class BevySettings(bpy.types.PropertyGroup):
 
             # export levels
             level_time = time.time()
+            level_gltf_time = 0
             for index, level_scene in enumerate(level_scenes):                                                             
                 print(f"exporting level {index+1}/{level_count}) - {level_scene.name}")                
                 gltf_path = os.path.join(self.assets_path, LEVELS_PATH, level_scene.name)    
@@ -375,24 +378,31 @@ class BevySettings(bpy.types.PropertyGroup):
                 copy_collection(level_scene.collection, temp_scene.collection)
                 if EXPORT_SCENE_SETTINGS:
                     add_scene_settings(temp_scene)
+                tmp_time = time.time()
                 export_scene(temp_scene, {}, gltf_path)
+                level_gltf_time += time.time() - tmp_time
+
                 delete_scene(temp_scene)
                 restore_original_names(level_scene.collection)
             level_time =  time.time() - level_time
  
             # export blueprints 
             blueprint_time = time.time()
+            blueprint_gltf_time = 0
             for index, blueprint in enumerate(blueprints_to_export):
                 print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
                 gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
                 collection = bpy.data.collections[blueprint.name]
                 temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
                 copy_collection(collection, temp_scene.collection)
+                tmp_time = time.time()
                 export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
+                blueprint_gltf_time += time.time() - tmp_time
                 delete_scene(temp_scene )                
                 restore_original_names(collection)
 
             blueprint_time =  time.time() - blueprint_time
+
             # reset scene
             bpy.context.window.scene = original_scene
             bpy.context.view_layer.active_layer_collection = original_collection
@@ -408,13 +418,18 @@ class BevySettings(bpy.types.PropertyGroup):
             bpy.context.window_manager.popup_menu(error_message, title="Error", icon='ERROR')
 
         total = util + material_time + level_time + blueprint_time
-        print(f"Export Timings:")
-        print(f"Util        : {util:.2f}s {util/total:.2f}%")       
-        print(f"Materials   : {material_time:.2f}s {material_time/total:.2f}%")
-        print(f"Levels      : {level_time:.2f}s {level_time/total:.2f}%")
-        print(f"Blueprints  : {blueprint_time:.2f}s {blueprint_time/total:.2f}%")
-        print(f"            ---------------------------")
-        print(f"Total       : {total:.2f}s")
+        def format_percent(value):
+            return f"{value*100:5.1f}%"
+        def format_time(value):
+            return f"{value:6.2f}s"
+        print(f"Timings     | Seconds | % of total | io_scene percentage of total |")
+        print(f"            ------------------------------------------------------------")
+        print(f"Setup       | {format_time(util)} {format_percent(util/total)}")
+        print(f"Materials   | {format_time(material_time)} {format_percent(material_time/total)} \t\t{format_percent(material_gltf_time/total)}")
+        print(f"Levels      | {format_time(level_time)} {format_percent(level_time/total)} \t\t{format_percent(level_gltf_time/total)}")
+        print(f"Blueprints  | {format_time(blueprint_time)} {format_percent(blueprint_time/total)} \t\t{format_percent(blueprint_gltf_time/total)}")
+        print(f"            ------------------------------------------------------------")
+        print(f"Total       : {format_time(total)}")
 
 
     @classmethod

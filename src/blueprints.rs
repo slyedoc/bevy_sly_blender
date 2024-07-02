@@ -88,6 +88,8 @@ pub(crate) fn spawn_blueprint_from_gltf(
 // we make some assumptions about gltf parser inserts entities in order
 // by heirarchy and assume root entity is always 0v1 and never has anything useful on it, so we skip it
 // we also assume 0v1 only has one child, making 1v1 the entity we want as new root entity
+// we make this last assumption because component_meta has to be on object instead of collection, so if we want
+// to be able to set component on the blueprint entity there cant be many children
 const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
 const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
 

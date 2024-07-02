@@ -95,7 +95,13 @@ fn components_string_to_components(
             // 3d space ships
             "MaxHandle",
             "Mr displacement",
-            "MapChannel:1"
+            "MapChannel:1",
+            // art blender stuff
+            "Conform_object",
+            "Kitops",
+            "Hair_brush_3d",
+            "Hops",
+            "Scatter5",
         ];
         if !ignore.iter().any(|s| capitalized_type_name.contains(s)) {
             warn!("no type registration for {}", capitalized_type_name);

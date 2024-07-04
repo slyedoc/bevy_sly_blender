@@ -189,6 +189,13 @@ impl Command for SpawnBlueprint {
                             if type_id == TypeId::of::<Children>() {
                                 let children = scene.world.get::<Children>(e).unwrap();
                                 // all my blueprints have only one child, this may change
+                                let name = world.entity(self.root).get::<Name>()
+                                    .unwrap_or(&Name::default())
+                                    .to_string();
+                                
+                                if children.iter().len() != 1 {
+                                    error!("name: {:?}, children: {:?}", name, children);
+                                }
                                 assert!(children.iter().len() == 1);
                             }
                             if type_id == TypeId::of::<GltfExtras>() {

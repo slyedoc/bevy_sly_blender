@@ -310,7 +310,9 @@ class BevySettings(bpy.types.PropertyGroup):
         if original_mode != None and original_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
         
-        self.create_dirs() # create the directories if they dont exist
+        # dont like deleting, but i keep getting old files
+        self.clear_and_create_dirs() # create the directories if they dont exist
+
 
         # Figure out what to export
         [level_scenes, library_scenes] = self.get_scenes()
@@ -1723,11 +1725,17 @@ class BevySettings(bpy.types.PropertyGroup):
         return used_material_names
 
     # create the directories for the exported assets if they do not exist
-    def create_dirs(self):
+    def clear_and_create_dirs(self):
         for path in [LEVELS_PATH, BLUEPRINTS_PATH, MATERIALS_PATH]:
             folder = os.path.join(self.assets_path, path)
             if not os.path.exists(folder):
                 os.makedirs(folder)
+            else:
+                # clear out the folder
+                for file in os.listdir(folder):
+                    if file.endswith(GLTF_EXTENSION):
+                        os.remove(os.path.join(folder, file))
+                
 
 # export scene to gltf with io_scene_gltf
 def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_path: str):
@@ -1762,6 +1770,7 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         use_visible=False, # Export visible and hidden objects
         use_renderable=False,
         
+        #export_keep_originals=True,
         #export_attributes=True,
         #export_shared_accessors=True,
         #export_hierarchy_flatten_objs=False, # Explore this more

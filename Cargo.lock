@@ -1163,11 +1163,12 @@ dependencies = [
 [[package]]
 name = "bevy_xpbd_3d"
 version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0425ea7361b9b27c2a382e0663deb42f41147eee60fb2b3d5fa7e42d363ea848"
 dependencies = [
  "bevy",
  "bevy_math",
  "bevy_xpbd_derive",
- "bitflags 2.5.0",
  "derive_more",
  "fxhash",
  "indexmap",
@@ -1180,8 +1181,9 @@ dependencies = [
 [[package]]
 name = "bevy_xpbd_derive"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e1ef1d5e328abe1b76df974245f78e17fd17867583883d5e77444c6a8223a64"
 dependencies = [
- "proc-macro2",
  "quote",
  "syn 2.0.66",
 ]
@@ -5230,3 +5232,7 @@ dependencies = [
  "quote",
  "syn 2.0.66",
 ]
+
+[[patch.unused]]
+name = "bevy_xpbd_3d"
+version = "0.5.0"

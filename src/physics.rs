@@ -59,7 +59,11 @@ pub(super) fn physics_replace_proxies(
             collider_proxy
         );
         let collider = match collider_proxy {
-            ProxyCollider::Ball(radius) => Collider::sphere(size)
+            ProxyCollider::Ball(radius) => {
+                let size = radius.max(0.1);
+                let msg= format!("Ball collider with radius: {}", size);
+                dbg!(msg);
+                Collider::sphere(size)
             },
             ProxyCollider::Cuboid(size) => Collider::cuboid(size.x, size.y, size.z),
             ProxyCollider::Capsule(height, radius) => Collider::capsule(*height, *radius),
@@ -104,7 +108,7 @@ pub(super) fn physics_replace_proxies(
                 convex
             }
             ProxyCollider::Halfspace(v) => {                
-                Collider::half_space(*v)
+                Collider::halfspace(*v)
             }
         };
         commands.entity(entity).insert(collider);

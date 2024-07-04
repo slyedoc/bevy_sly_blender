@@ -76,11 +76,11 @@ class EditCollectionInstance(bpy.types.Operator):
         
         # select object and children
         new_scene.objects[root_obj.name].select_set(True)        
-        def select_children(parent):
-            for child in parent.children:
-                child.select_set(True)
-                select_children(child)  # Recursively select further descendants
-        select_children(root_obj);
+        # def select_children(parent):
+        #     for child in parent.children:
+        #         child.select_set(True)
+        #         select_children(child)  # Recursively select further descendants
+        # select_children(root_obj);
 
         # Select the view layer and view the selected objects
         bpy.context.view_layer.objects.active = new_scene.objects[root_obj.name]

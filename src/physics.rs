@@ -59,7 +59,8 @@ pub(super) fn physics_replace_proxies(
             collider_proxy
         );
         let collider = match collider_proxy {
-            ProxyCollider::Ball(radius) => Collider::sphere(*radius),
+            ProxyCollider::Ball(radius) => Collider::sphere(size)
+            },
             ProxyCollider::Cuboid(size) => Collider::cuboid(size.x, size.y, size.z),
             ProxyCollider::Capsule(height, radius) => Collider::capsule(*height, *radius),
             ProxyCollider::Mesh => {

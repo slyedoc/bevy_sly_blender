@@ -8,14 +8,18 @@ import json
 # Safety first
 delete_for_real = False
 
+
+
 # List of objects to print out debug info for
 debug_objects = list(["Cockpit1"]) # ["*"] for all objects
 
 # List of properties to delete if found on object
-delete_props = list(["shipwright_collection", "plating_generator", "shape_generator_collection", "MaterialInfo"]) 
 
-delete_bevy_components = list(["orbit::shaders::Skybox"])
-debug_bevy_components = list(["orbit::ships::gun::ProxyGun"]) # ["*"] for all objects
+delete_props = list(["MaterialInfo"]) 
+# "shipwright_collection", "plating_generator", "shape_generator_collection",
+
+delete_bevy_components = list(["orbit::shaders::Skyboxasdfasdf"])
+debug_bevy_components = list(["orbit::blender::LevelSettings"]) # ["*"] for all objects
 
 # List of components to delete if found in components_meta
 delete_meta_components = list(["bevy_gltf_blueprints::materials::MaterialInfo"])

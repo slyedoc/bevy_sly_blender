@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command},
+    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
     gltf::Gltf,
     prelude::*,
 };
@@ -136,7 +136,7 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
                     );
                     continue;
                 };
-                reflect_resource.copy(&scene.world, world);
+                reflect_resource.copy(&scene.world, world, &type_registry);
             }
 
             // map of scene to app world entities

@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, system::Command},
+    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
     gltf::{Gltf, GltfExtras},
     prelude::*,
 };

@@ -1,5 +1,5 @@
 use bevy::log::{debug, warn};
-use bevy::reflect::serde::UntypedReflectDeserializer;
+use bevy::reflect::serde::ReflectDeserializer;
 use bevy::reflect::{Reflect, TypeRegistration, TypeRegistry};
 use bevy::utils::HashMap;
 use ron::Value;
@@ -69,7 +69,7 @@ fn components_string_to_components(
 
         let mut deserializer = ron::Deserializer::from_str(ron_string.as_str())
             .expect("deserialzer should have been generated from string");
-        let reflect_deserializer = UntypedReflectDeserializer::new(type_registry);
+        let reflect_deserializer = ReflectDeserializer::new(type_registry);
         let component = reflect_deserializer
             .deserialize(&mut deserializer)
             .unwrap_or_else(|_| {
@@ -134,15 +134,13 @@ fn bevy_components_string_to_components(
             debug!("component data ron string {}", ron_string);
             let mut deserializer = ron::Deserializer::from_str(ron_string.as_str())
                 .expect("deserialzer should have been generated from string");
-            let reflect_deserializer = UntypedReflectDeserializer::new(type_registry);
-            let component = reflect_deserializer
-                .deserialize(&mut deserializer)
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "failed to deserialize component {} with value: {:?}",
-                        key, value
-                    )
-                });
+            let reflect_deserializer = ReflectDeserializer::new(type_registry);
+            let Ok(component) = reflect_deserializer.deserialize(&mut deserializer) else {
+                panic!(
+                    "failed to deserialize component {} with value: {:?}",
+                    key, value
+                )
+            };
 
             debug!("component {:?}", component);
             debug!("real type {:?}", component.get_represented_type_info());

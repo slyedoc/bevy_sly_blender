@@ -1813,6 +1813,10 @@ def copy_collection(src_col: bpy.types.Collection, dst_col: bpy.types.Collection
 
     # copy all objects then fixing parenting instead of recursively copying
     for o in src_col.all_objects:
+        if o.name.startswith("Shipwright Lattice"):
+            print(f"skipping {o.name}")
+            continue
+
         # this is to cleanup if the last run failed and left some objects with the backup suffix
         if o.name.endswith(NAME_BACKUP_SUFFIX + ".001"): 
             o.name = o.name.replace(NAME_BACKUP_SUFFIX + ".001", "")

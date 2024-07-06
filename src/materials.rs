@@ -28,8 +28,8 @@ pub(crate) fn materials_inject(
             .get(gltf.id())
             .expect("gltf should have been loaded");
 
-        if let Some(mat) = mat_gltf.named_materials.get(&material_name.0) {
-            commands.entity(e).insert(mat.clone());            
+        if let Some(mat) = mat_gltf.named_materials.get(material_name.0.as_str()) {
+            commands.entity(e).insert(mat.clone());
         } else {
             info!("material should have been found - {:?}", &material_name.0);
         }

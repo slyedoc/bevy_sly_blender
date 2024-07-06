@@ -14,14 +14,14 @@ animation = [] # optional feature to enable the animation system
 
 
 [dependencies]
-bevy = { version = "0.13" }
+bevy = { version = "0.14" }
 ron = "0.8.1"
 serde = "1.0.202"
 serde_json = "1.0.117"
-bevy-inspector-egui = { version = "0.24", optional = true }
-bevy_asset_loader = { version = "0.20" }
+bevy-inspector-egui = { version = "0.25", optional = true }
+bevy_asset_loader = { version = "0.21" }
 
-bevy_xpbd_3d = { version = "0.4", optional = true }
+bevy_xpbd_3d = { version = "0.5", optional = true }
 
 # iter utils
 strum = { version = "0.26", features = ["derive"] }
@@ -29,4 +29,4 @@ strum_macros = "0.26"
 
 
 [patch.crates-io]
-bevy_xpbd_3d = { path = "../../f/bevy_xpbd/crates/bevy_xpbd_3d/" }
+#bevy_xpbd_3d = { path = "../../f/bevy_xpbd/crates/bevy_xpbd_3d/" }

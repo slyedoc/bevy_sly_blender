@@ -4,7 +4,7 @@ use bevy::{
     render::mesh::{MeshVertexAttributeId, PrimitiveTopology, VertexAttributeValues},
     transform::TransformSystem::TransformPropagate,
 };
-use bevy_xpbd_3d::{
+use avian3d::{
     parry::{
         na::{Const, OPoint},
         shape::SharedShape,
@@ -108,7 +108,7 @@ pub(super) fn physics_replace_proxies(
                 convex
             }
             ProxyCollider::Halfspace(v) => {                
-                Collider::halfspace(*v)
+                Collider::half_space(*v)
             }
         };
         commands.entity(entity).insert(collider);

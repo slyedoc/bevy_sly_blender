@@ -1,10 +1,32 @@
 import bpy
 
 # Safty
-change = False
+change = True
 
-info_list = ["D:"]
-replace_list = [("D:/project/Control Room Science Fiction Station/3D/sell/blender/texture/", "/home/slyedoc/code/p/assets/cgtrader/Sci Fi Interior Station 3D/texture/")]
+info_list = ["uploads_files_860985_VattalusAssets_TemplarFrigate"] # D:
+replace_list = [
+    (
+        "D:/project/Control Room Science Fiction Station/3D/sell/blender/texture/",
+        "/home/slyedoc/code/p/assets/cgtrader/Sci Fi Interior Station 3D/texture/"
+    ),
+    (
+        "/home/slyedoc/code/p/assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/TemplarFrigate/../../Turrets/Textures/Turret_M1_S1/",
+        "//../../assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/Turrets/Textures/Turret_M1_S1/"
+    ),
+    (
+        "/home/slyedoc/code/p/assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/TemplarFrigate/../../Turrets/Textures/Turret_M2_S2/",
+        "//../../assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/Turrets/Textures/Turret_M2_S2/"
+    ),
+    (
+        "/home/slyedoc/code/p/assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/TemplarFrigate/../../Engines/Textures/Engine_M1/",
+        "//../../assets/cgtrader/uploads_files_860985_VattalusAssets_TemplarFrigate/Engines/Textures/Engine_M1/"
+    ),
+    (
+        "/home/slyedoc/code/p/assets/cgtrader/uploads_files_860985_VattalusAssets_PhalanxCorvette/PhalanxCorvette/../../Engines/Textures/Engine_S1/",
+        "//../../assets/cgtrader/uploads_files_860985_VattalusAssets_PhalanxCorvette/Engines/Textures/Engine_S1/"
+    )
+]
+
 
 print("\n\n\nImage Paths\n\n\n")
 
@@ -18,7 +40,7 @@ for material in bpy.data.materials:
                 # Get the image filepath
                 image = node.image
                 if image:
-                    print(f"Found: {image.name} in {image.filepath_raw}")
+                    #print(f"Found: {image.name} in {image.filepath_raw}")
                     for name in info_list:
                        if name in image.filepath_raw:
                             
@@ -33,5 +55,5 @@ for material in bpy.data.materials:
                                         image.filepath_raw = filename
                                         image.filepath = filename
                                         image.reload()                                    
-                                    #print(f"Updated: {image.filepath}")
+                                    print(f"Updated: {image.filepath}")
 

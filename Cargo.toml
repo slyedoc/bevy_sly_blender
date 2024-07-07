@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 default = ["inspector", "registry", "physics"]
-physics = [ "bevy_xpbd_3d" ]
+physics = [ "avian3d" ]
 registry = [] # optional feature to enable the registry
 inspector = [ "bevy-inspector-egui" ]
 nested = [] # testing feature to test flat vs nested
@@ -21,7 +21,7 @@ serde_json = "1.0.117"
 bevy-inspector-egui = { version = "0.25", optional = true }
 bevy_asset_loader = { version = "0.21" }
 
-bevy_xpbd_3d = { version = "0.5", optional = true }
+avian3d = { version = "0.1", optional = true }
 
 # iter utils
 strum = { version = "0.26", features = ["derive"] }

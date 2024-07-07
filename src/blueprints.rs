@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 #[cfg(feature = "physics")]
-use bevy_xpbd_3d::plugins::collision::ColliderParent;
+use avian3d::collision::ColliderParent;
 use core::panic;
 use std::any::TypeId;
 

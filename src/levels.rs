@@ -3,6 +3,8 @@ use bevy::{
     gltf::Gltf,
     prelude::*,
 };
+#[allow(unused_imports)]
+use smallvec::smallvec;
 use std::any::TypeId;
 
 use crate::{BlenderPluginConfig, GltfFormat};
@@ -47,10 +49,12 @@ pub(crate) fn spawn_level_from_gltf(
     spawn_placeholders: Query<(Entity, &LevelGltf), Added<LevelGltf>>,
 ) {
     for (e, gltf) in spawn_placeholders.iter() {
-        commands.add(SpawnLevel::<LevelMarker> {
+        commands.add(SpawnLevel {
             handle: gltf.0.clone(),
             root: Some(e),
-            ..default()
+            bundle_fn: |e| {
+                e.insert(LevelMarker);
+            },
         });
     }
 }
@@ -64,15 +68,20 @@ pub(crate) fn spawn_level_from_gltf(
 // we also assume 0v1 only hase one child, making 1v1 the entity we want as new root entity
 const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
 
+//type SpawnFn = FnOnce(&mut EntityWorldMut) + Send + Sync;
+
 #[derive(Debug, Default)]
-pub struct SpawnLevel<T: Component + Default> {
+pub struct SpawnLevel<F>
+where
+    F: Fn(&mut EntityWorldMut) + Send + Sync + 'static,
+{
     pub handle: Handle<Gltf>,
     pub root: Option<Entity>,
-    pub _marker: std::marker::PhantomData<T>,    
+    pub bundle_fn: F,
 }
 
-impl<T: Component + Default> Command for SpawnLevel<T> {
-    fn apply(self, world: &mut World) {        
+impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
+    fn apply(self, world: &mut World) {
         let assets_gltf = world.resource::<Assets<Gltf>>();
 
         let gltf = assets_gltf
@@ -89,15 +98,6 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
         let scene_id = scene.id();
 
         world.resource_scope(|world, mut scenes: Mut<Assets<Scene>>| {
-            // cache the parent
-            // let parent = match self.root {
-            //     Some(e) => match world.entity(e).get::<Parent>() {
-            //         Some(p) => Some((p.get(), e)),
-            //         None => None,
-            //     },
-            //     None => None,
-            // };
-
             let Some(scene) = scenes.get_mut(scene_id) else {
                 error!("Failed to get scene with id {:?}", scene_id);
                 return;
@@ -141,16 +141,18 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
 
             // map of scene to app world entities
             let mut entity_map = EntityHashMap::default();
+            let mut entities = Vec::<Entity>::new();
+
             if let Some(e) = self.root {
-                entity_map.insert(SCENE_ROOT, e);
+                entity_map.insert(SCENE_ROOT, e);                
             }
 
             let mut new_roots: Vec<Entity> = Vec::new();
 
             // create entities and copy components
             for archetype in scene.world.archetypes().iter() {
-                for scene_entity in archetype.entities() {
-                    let e = scene_entity.id();
+                for scene_entity_arch in archetype.entities() {
+                    let scene_entity = scene_entity_arch.id();
 
                     for component_id in archetype.components() {
                         let component_info = scene
@@ -159,98 +161,80 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
                             .get_info(component_id)
                             .expect("component_ids in archetypes should have ComponentInfo");
                         let type_id = component_info.type_id().unwrap();
-                        let reflect_component = type_registry
+                        let registration = type_registry
                             .get(type_id)
-                            .expect("Failed to get reflect component type id:")
+                            .expect("Failed to get type registration");
+
+                        let reflect_component = registration
                             .data::<ReflectComponent>()
                             .expect("Failed to get reflect component");
-                        
+
                         // skip if root entity, nothing useful on it
-                        if e == SCENE_ROOT {
+                        if scene_entity == SCENE_ROOT {
                             // sanity checks
                             if type_id == TypeId::of::<Transform>() {
-                                let scene_trans = scene.world.get::<Transform>(e).unwrap();
+                                let scene_trans =
+                                    scene.world.get::<Transform>(scene_entity).unwrap();
                                 assert!(scene_trans.translation == Vec3::ZERO);
                                 assert!(scene_trans.scale == Vec3::ONE);
                                 assert!(scene_trans.rotation == Quat::IDENTITY);
                             }
 
                             // flatten
-                            if self.root.is_none() {
-                                // children of the scene root will be new roots, save them
-                                if type_id == TypeId::of::<Children>() {
-                                    let children = scene.world.get::<Children>(e).unwrap();
-                                    for child in children.iter() {
-                                        new_roots.push(*child);
-                                    }
-                                    //dbg!(&new_roots);
+                            if type_id == TypeId::of::<Children>() {
+                                let children = scene.world.get::<Children>(scene_entity).unwrap();
+                                for child in children.iter() {
+                                    new_roots.push(*child);
                                 }
-                                // dont copy root entity if we are not given't one to map it too
-                                continue;
                             }
-                        }
 
-                        if new_roots.contains(&e) {
-                            // dont copy parent for new root entities
-                            if type_id == TypeId::of::<Parent>() {
-                                continue;
-                            }
-                            // if type_id == TypeId::of::<GlobalTransform>() {
-                            //     continue;
-                            // }
-                            // if type_id == TypeId::of::<InheritedVisibility>() {
-                            //     // TODO: do i need to add visibility to new roots?
-                            //     continue;
-                            // }
+                            // dont copy root entity if we are not given't one to map it too
+                            continue;
                         }
 
                         // get or create app world entity
-                        // entry already exsits for SCENE_NEW_ROOT
                         let entity = entity_map
-                            .entry(scene_entity.id())
+                            .entry(scene_entity)
                             .or_insert_with(|| world.spawn_empty().id());
+
+                        // If this component references entities in the scene, track it
+                        // so we can update it to the entity in the world.
+
+                        // if a new root node, just add it
+                        if new_roots.contains(&scene_entity) {
+                            // dont copy parent component of root entity
+                            if type_id == TypeId::of::<Parent>() {
+                                // set if we have a root entity
+                                if let Some(parent) = self.root {
+                                    //dbg!(scene_entity, parent);
+                                    world.entity_mut(*entity).insert(Parent(parent));
+                                }
+                                continue;
+                            }
+
+                            if type_id == TypeId::of::<Children>() {                                
+                                continue;
+                            }
+
+                        } else {
+                            if registration.data::<ReflectMapEntities>().is_some() {
+                                if !entities.contains(&entity) {
+                                    entities.push(*entity);
+                                }
+                            }
+
+                        }
+
+                        
 
                         // copy the component from scene to world
                         reflect_component.copy(
                             &scene.world,
                             world,
-                            scene_entity.id(),
+                            scene_entity,
                             *entity,
                             &type_registry,
                         );
-
-                        // dont copy parent for new root entities
-                        // let unnamed = Name::new("unnamed");
-                        // if type_id == TypeId::of::<Parent>() || type_id == TypeId::of::<Children>() {
-                        //     let name = scene.world.get::<Name>(e).unwrap_or_else(|| &unnamed);
- 
-                        // }
-
-                        // if e == SCENE_NEW_ROOT {
-                        //     // copy components from root entity except the following
-
-                        //     // dont overwrite name with blueprint's name
-                        //     if type_id == TypeId::of::<Name>() {
-                        //         let name = scene.world.get::<Name>(e).unwrap().clone();
-                        //         //dbg!(name);
-                        //         continue;
-                        //     }
-                        //     // dont overwrite the parent
-                        //     if type_id == TypeId::of::<Parent>() {
-                        //         continue;
-                        //     }
-                        //     // apply the root entity's transform to existing entity
-                        //     // but dont copy it
-                        //     if type_id == TypeId::of::<Transform>() {
-                        //         let scene_trans = scene.world.get::<Transform>(e).unwrap().clone();
-                        //         let mut trans = world.get_mut::<Transform>(*entity).unwrap();
-
-                        //         trans.translation += scene_trans.translation;
-                        //         trans.rotation *= scene_trans.rotation;
-                        //         trans.scale *= scene_trans.scale;
-                        //         continue;
-                        //     }
-                        // }
                     }
                 }
             }
@@ -260,13 +244,74 @@ impl<T: Component + Default> Command for SpawnLevel<T> {
                 let Some(map_entities_reflect) = registration.data::<ReflectMapEntities>() else {
                     continue;
                 };
-                map_entities_reflect.map_all_entities(world, &mut entity_map);
+                map_entities_reflect.map_entities(world, &mut entity_map, &entities);
             }
 
-            // remove parent from new root entities
-            for r in new_roots.iter().map(|e| entity_map.get(e).unwrap()) {
-                // add marker
-                world.entity_mut(*r).insert(T::default());
+            let world_new_roots = new_roots
+                .iter()
+                .map(|e| entity_map.get(e).unwrap().clone())
+                .collect::<Vec<_>>();
+                //info!("level new roots: {}", world_new_roots.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(", "))    ;
+            
+
+            for e in world_new_roots.iter() {
+                let name = world
+                .get::<Name>(*e)
+                .map(|n| format!("{:?}", n.to_string()))
+                .unwrap_or("N/A".to_owned());
+            let parent = world
+                .get::<Parent>(*e)
+                .map(|n| format!("{}", n.0))
+                .unwrap_or("N/A".to_owned());
+            let translate = world
+                .get::<Transform>(*e)
+                .map(|n| format!("{:?}", n.translation))
+                .unwrap_or("N/A".to_owned());
+            let children = world
+                .get::<Children>(*e)
+                .map(|c| {
+                    let x =
+                        c.0.iter()
+                            .map(|e| format!("{}", e))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                    x
+                })
+                .unwrap_or_else(|| "N/A".to_owned());
+                info!("level roots: {e} - {name}, parent: {parent}, pos: {translate},  children: {children}");                
+            }
+
+            // call bundle fn
+            for e in world_new_roots.iter() {
+                (self.bundle_fn)(&mut world.entity_mut(*e));
+                // add marker with bundle fn
+            }
+
+            // fix children of root entity
+            if let Some(parent_e) = self.root {
+                let mut parent_cmd = world.entity_mut(parent_e);
+                let name = {
+                    let x = parent_cmd.get_mut::<Name>().unwrap();
+                    &x.to_string()
+                };
+                match parent_cmd.get_mut::<Children>() {
+                    Some(mut c) => {
+                        warn!("level parent name: {:?} - {:?}", name, c);
+                        for re in world_new_roots.iter() {
+                            c.0.push(*re);
+                        }
+                    }
+                    None => {
+                        warn!(
+                            "level parent none - name: {:?} - {:?}",
+                            name,
+                            world_new_roots.len()
+                        );
+                        // root entity has no children, so we need to add one
+                        parent_cmd
+                            .insert(Children(smallvec::SmallVec::from_slice(&world_new_roots)));
+                    }
+                }
             }
         })
     }

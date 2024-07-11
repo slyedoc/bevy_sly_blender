@@ -75,7 +75,7 @@ fn setup(mut commands: Commands) {
 
 // Setup the playing screen
 fn setup_playing(mut commands: Commands, blender_assets: Res<BlenderAssets>) {
-    commands.add(SpawnLevel::<CleanupMarker> {
+    commands.add(SpawnLevel {
         handle: blender_assets
             .levels
             .values()
@@ -83,6 +83,10 @@ fn setup_playing(mut commands: Commands, blender_assets: Res<BlenderAssets>) {
             .expect("no levels loaded")
             .clone(),
         root: None,
-        ..default()
+        bundle_fn: |e| {
+            e.insert((
+                CleanupMarker,                
+            ));
+        }
     });
 }

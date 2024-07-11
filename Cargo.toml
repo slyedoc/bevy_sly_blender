@@ -20,6 +20,8 @@ serde = "1.0.202"
 serde_json = "1.0.117"
 bevy-inspector-egui = { version = "0.25", optional = true }
 bevy_asset_loader = { version = "0.21" }
+# should match bevy_hierarchy
+smallvec = { version = "1.11" }
 
 avian3d = { version = "0.1", optional = true }
 
@@ -29,4 +31,41 @@ strum_macros = "0.26"
 
 
 [patch.crates-io]
-#bevy_xpbd_3d = { path = "../../f/bevy_xpbd/crates/bevy_xpbd_3d/" }
+bevy = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_a11y = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_animation = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_app = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_asset = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_audio = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_color = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_core = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_core_pipeline = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_derive = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_diagnostic = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_ecs = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_encase_derive = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_gilrs = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_gizmos = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_gltf = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_hierarchy = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_input = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_internal = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_log = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_macro_utils = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_math = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_mikktspace = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_pbr = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_ptr = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_reflect = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_render = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_scene = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_sprite = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_state = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_tasks = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_text = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_time = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_transform = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_ui = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_utils = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_window = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }
+bevy_winit = { git = "https://github.com/slyedoc/bevy.git", branch = "v0.14-skybox" }

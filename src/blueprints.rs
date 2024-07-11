@@ -1,10 +1,10 @@
+//#[cfg(feature = "physics")]
+//use avian3d::collision::ColliderParent;
 use bevy::{
     ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
-    gltf::{Gltf, GltfExtras},
+    gltf::Gltf,
     prelude::*,
 };
-#[cfg(feature = "physics")]
-use avian3d::collision::ColliderParent;
 use core::panic;
 use std::any::TypeId;
 
@@ -103,16 +103,6 @@ impl Command for SpawnBlueprint {
         let id = self.handle.id();
 
         world.resource_scope(|world, mut scenes: Mut<Assets<Scene>>| {
-            // cache the parent
-            let parent = {
-                let p = world.entity(self.root).get::<Parent>();
-                if let Some(p) = p {
-                    Some(p.get().clone())
-                } else {
-                    None
-                }
-            };
-
             let Some(scene) = scenes.get_mut(id) else {
                 error!("Failed to get scene with id {:?}", id);
                 return;
@@ -158,12 +148,22 @@ impl Command for SpawnBlueprint {
 
             // map of scene to app world entities
             let mut entity_map = EntityHashMap::default();
+            let mut entities: Vec<Entity> = vec![];
+            let mut new_roots: Vec<Entity> = Vec::new();
+
             entity_map.insert(SCENE_NEW_ROOT, self.root);
 
             // create entities and copy components
             for archetype in scene.world.archetypes().iter() {
-                for scene_entity in archetype.entities() {
-                    let e = scene_entity.id();
+                for scene_entity_arch in archetype.entities() {
+                    let scene_entity = scene_entity_arch.id();
+
+                    // TODO: remove this, dbg only
+                    let name = world
+                        .get::<Name>(self.root)
+                        .map(|n| format!("{:?}", n.to_string()))
+                        .unwrap_or("N/A".to_owned());
+
                     for component_id in archetype.components() {
                         let component_info = scene
                             .world
@@ -171,124 +171,191 @@ impl Command for SpawnBlueprint {
                             .get_info(component_id)
                             .expect("component_ids in archetypes should have ComponentInfo");
                         let type_id = component_info.type_id().unwrap();
-                        let reflect_component = type_registry
+                        let registration = type_registry
                             .get(type_id)
-                            .expect("Failed to get reflect component type id:")
+                            .expect("Failed to get type registration");
+                        let reflect_component = registration
                             .data::<ReflectComponent>()
                             .expect("Failed to get reflect component");
 
                         // skip if root entity, nothing useful on it
-                        if e == SCENE_ROOT {
+                        if scene_entity == SCENE_ROOT {
                             // sanity checks
                             if type_id == TypeId::of::<Transform>() {
-                                let scene_trans = scene.world.get::<Transform>(e).unwrap();
+                                let scene_trans =
+                                    scene.world.get::<Transform>(scene_entity).unwrap();
                                 assert!(scene_trans.translation == Vec3::ZERO);
                                 assert!(scene_trans.scale == Vec3::ONE);
                                 assert!(scene_trans.rotation == Quat::IDENTITY);
                             }
+
+                            // flatten the scene
                             if type_id == TypeId::of::<Children>() {
-                                let children = scene.world.get::<Children>(e).unwrap();
-                                // all my blueprints have only one child, this may change
-                                let name = world.entity(self.root).get::<Name>()
-                                    .unwrap_or(&Name::default())
-                                    .to_string();
-                                
-                                if children.iter().len() != 1 {
-                                    error!("name: {:?}, children: {:?}", name, children);
+                                let children = scene.world.get::<Children>(scene_entity).unwrap();
+                                for child in children.iter() {
+                                    new_roots.push(*child);
                                 }
                                 assert!(children.iter().len() == 1);
-                            }
-                            if type_id == TypeId::of::<GltfExtras>() {
-                                panic!("GltfExtras should have been copied to the app world");
                             }
                             continue;
                         }
 
                         // get or create app world entity
-                        // entry already exsits for SCENE_NEW_ROOT
                         let entity = entity_map
-                            .entry(scene_entity.id())
+                            .entry(scene_entity)
                             .or_insert_with(|| world.spawn_empty().id());
 
-                        // dont overwrite the parent
-                        #[cfg(feature = "physics")]
-                        if type_id == TypeId::of::<ColliderParent>() {
-                            error!("Parent should have been fixed");
-                        }
-
-                        
-
-                        if e == SCENE_NEW_ROOT {
+                        if new_roots.contains(&scene_entity) {
                             // copy components from root entity except the following
 
                             // dont overwrite name with blueprint's name
                             if type_id == TypeId::of::<Name>() {
                                 continue;
                             }
-                            // dont overwrite the parent
+
+                            // dont overwrite name with blueprint's parent
                             if type_id == TypeId::of::<Parent>() {
                                 continue;
                             }
-                            // if type_id == TypeId::of::<GlobalTransform>() {
-                            //     continue;
-                            // }
+
+                            if type_id == TypeId::of::<Children>() {                                
+                                continue;
+                            }
 
                             // apply the root entity's transform to existing entity
                             // but dont copy it
-
                             if type_id == TypeId::of::<Transform>() {
-                                let name = scene
-                                    .world
-                                    .get::<Name>(e)
-                                    .unwrap_or(&Name::default())
-                                    .to_string();
-
-                                let scene_trans = scene.world.get::<Transform>(e).unwrap().clone();
+                                let scene_trans =
+                                    scene.world.get::<Transform>(scene_entity).unwrap();
                                 let mut trans =
                                     world.get_mut::<Transform>(*entity).unwrap_or_else(|| {
                                         panic!("Failed to get transform for entity {:?}", name)
                                     });
-
-                                let new_trans =  trans.mul_transform(scene_trans);
-                                //if name.contains("Tia") {
-                                //    error!("name: {:?}: existing: {:?}, scene: {:?}, new: {:?}", name, trans, scene_trans, new_trans);
-                                //}
-                                
+                                let new_trans = trans.mul_transform(*scene_trans);
                                 *trans = new_trans;
 
                                 continue;
                             }
+                        } else {
+                            if type_id == TypeId::of::<Parent>() {
+                                let parent = scene.world.get::<Parent>(scene_entity).unwrap().0;
+                                if new_roots.contains(&parent) {
+                                    dbg!("fix blueprint parent");
+                                    //world.entity_mut(*entity).insert(Parent(self.root));
+                                    //continue;
+                                }
+                            }
+
+                            if registration.data::<ReflectMapEntities>().is_some() {
+                                if !entities.contains(&entity) {
+                                    entities.push(*entity);
+                                }
+                            }
                         }
 
+                        // dont overwrite the parent
+                        // #[cfg(feature = "physics")]
+                        // if type_id == TypeId::of::<ColliderParent>() {
+                        //     error!("Parent should have been fixed");
+                        // }
+
                         // copy the component from scene to world
+                        
                         reflect_component.copy(
                             &scene.world,
                             world,
-                            scene_entity.id(),
+                            scene_entity,
                             *entity,
                             &type_registry,
                         );
+                        
                     }
                 }
             }
 
             // Reflect Map Entities, this fixes any references to entities in the copy
+
             for registration in type_registry.iter() {
                 let Some(map_entities_reflect) = registration.data::<ReflectMapEntities>() else {
                     continue;
                 };
-                map_entities_reflect.map_all_entities(world, &mut entity_map);
+                map_entities_reflect.map_entities(world, &mut entity_map, &entities);
             }
 
-            // TODO: still not happy with this
-            // info!(
-            //     "parent: {:?}, current_parent: {:?}, fixing",
-            //     parent,
-            //     world.entity(self.root).get::<Parent>().unwrap().get()
-            // );
-            // Fix Parenting, we cached the correct parent entity at the start
-            if let Some(p) = parent {
-                world.entity_mut(self.root).set_parent(p);
+            let world_new_roots = new_roots
+                .iter()
+                .map(|e| entity_map.get(e))
+                .filter(|e| e.is_some())
+                .map(|e| *e.unwrap())
+                .collect::<Vec<_>>();
+
+            //dbg!(&world_new_roots, new_roots);
+                //info!("blueprints new roots: {}", world_new_roots.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(", "))    ;
+            
+
+            for e in world_new_roots.iter() {
+                let name = world
+                    .get::<Name>(*e)
+                    .map(|n| format!("{:?}", n.to_string()))
+                    .unwrap_or("N/A".to_owned());
+                let parent = world
+                    .get::<Parent>(*e)
+                    .map(|n| format!("{}", n.0))
+                    .unwrap_or("N/A".to_owned());
+
+                // let p_e = world
+                //     .get::<Parent>(*e)
+                //     .unwrap().0;
+
+                 let parent_name = world
+                     .get::<Name>(self.root)
+                     .map(|n| format!("{}", n))
+                     .unwrap_or("N/A".to_owned());
+
+                let translate = world
+                    .get::<Transform>(*e)
+                    .map(|n| format!("{:?}", n.translation))
+                    .unwrap_or("N/A".to_owned());
+                let children = world
+                    .get::<Children>(*e)
+                    .map(|c| {
+                        let x =
+                            c.0.iter()
+                                .map(|e| format!("{}", e))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                        x
+                    })
+                    .unwrap_or_else(|| "N/A".to_owned());
+
+                info!("blueprint roots: {e} - {name}, parent: {parent} - {parent_name}, pos: {translate},  children: {children}");
+            }
+
+            
+            let name = world
+                .get::<Name>(self.root)
+                .map(|n| format!("{:?}", n.to_string()))
+                .unwrap_or("N/A".to_owned());
+
+            match world.get_mut::<Children>(self.root) {
+                Some(mut c) => {
+                    let new_children = world_new_roots.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(", ");
+                    
+                    let children = c.0.iter()
+                        .map(|e| format!("{}", e))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    warn!("blueprint: {}, name:  {name}, new_children: {new_children}, children: {children}", self.root);
+                }
+                None => {
+                    error!(
+                        "blueprint parent none - name: {name}",
+                    );
+                    // root entity has no children, so we need to add one
+                     world
+                         .entity_mut(self.root)
+                         .insert(Children(smallvec::SmallVec::from_slice(&world_new_roots)));
+                }
             }
 
             // notify anyone that cares that the blueprint has been spawned

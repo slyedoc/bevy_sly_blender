@@ -7,7 +7,7 @@ use bevy::{
 use smallvec::smallvec;
 use std::any::TypeId;
 
-use crate::{print_debug_list, BlenderPluginConfig, GltfFormat, SCENE_NEW_ROOT, SCENE_ROOT};
+use crate::{print_debug_list, BlenderPluginConfig, GltfFormat, SCENE_ROOT};
 
 /// Helper to spawn from name blueprints
 #[derive(Component, Reflect, Default, Debug)]
@@ -51,26 +51,25 @@ pub(crate) fn spawn_level_from_gltf(
     for (e, gltf) in spawn_placeholders.iter() {
         commands.add(SpawnLevel {
             handle: gltf.0.clone(),
-            root: Some(e),
-            bundle_fn: |e| {
-                e.insert(LevelMarker);
-            },
+            root: e,
+            // bundle_fn: |e| {
+            //     e.insert(LevelMarker);
+            // },
         });
     }
 }
 
 /// Command a level to be spawned
-#[derive(Debug, Default)]
-pub struct SpawnLevel<F>
-where
-    F: Fn(&mut EntityWorldMut) + Send + Sync + 'static,
+#[derive(Debug)]
+pub struct SpawnLevel//<F>
+//where F: Fn(&mut EntityWorldMut) + Send + Sync + 'static,
 {
     pub handle: Handle<Gltf>,
-    pub root: Option<Entity>,
-    pub bundle_fn: F,
+    pub root: Entity,
+    //pub bundle_fn: F,
 }
 
-impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
+impl Command for SpawnLevel {
     fn apply(self, world: &mut World) {
         let assets_gltf = world.resource::<Assets<Gltf>>();
 
@@ -91,11 +90,6 @@ impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
             let Some(scene) = scenes.get_mut(scene_id) else {
                 error!("Failed to get scene with id {:?}", scene_id);
                 return;
-            };
-
-            let root = match self.root {
-                Some(e) =>  e,
-                None => world.spawn_empty().id(),
             };
 
             let type_registry = world.resource::<AppTypeRegistry>().clone();
@@ -136,29 +130,16 @@ impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
 
             // map of scene to app world entities
             let mut entity_map = EntityHashMap::default();            
-            entity_map.insert(SCENE_NEW_ROOT, root);
+            entity_map.insert(SCENE_ROOT, self.root);
 
             // list of world entities that are not children
             let mut entities: HashSet<Entity> = HashSet::default();
 
-            let scene_new_roots = scene
+            let scene_roots = scene
                 .world
                 .get::<Children>(SCENE_ROOT)
                 .map(|c| c.0.to_vec())
                 .unwrap();
-
-            // get the children of that scene_child, those will be the new children of self.root
-            let scene_root_children: Vec<Entity> = scene_new_roots
-                .iter()
-                .map(|c| {
-                    scene
-                        .world
-                        .get::<Children>(*c)
-                        .map(|c| c.0.to_vec())
-                        .unwrap_or_else(Vec::new)
-                })
-                .flatten()
-                .collect();
 
             // create entities and copy components
             for archetype in scene.world.archetypes().iter() {
@@ -190,8 +171,6 @@ impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
                                 assert!(scene_trans.scale == Vec3::ONE);
                                 assert!(scene_trans.rotation == Quat::IDENTITY);
                             }
-
-                            // dont copy root entity if we are not given't one to map it too
                             continue;
                         }
 
@@ -201,17 +180,12 @@ impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
                             .or_insert_with(|| world.spawn_empty().id());
 
                         // if a new root node, just add it
-                        if scene_new_roots.contains(&scene_entity) {
+                        if scene_roots.contains(&scene_entity) {
                             // dont copy parent component of root entity
-                            if type_id == TypeId::of::<Parent>() {
-                                // set if we have a root entity
-                                if let Some(parent) = self.root {
-                                    //dbg!(scene_entity, parent);
-                                    world.entity_mut(*entity).insert(Parent(parent));
-                                }
+                            if type_id == TypeId::of::<Parent>() || 
+                            type_id == TypeId::of::<Children>()  {                                
                                 continue;
                             }
-
                         } else {
                             entities.insert(*entity); // add to map list
                         }
@@ -237,62 +211,28 @@ impl<B: Fn(&mut EntityWorldMut) + Send + Sync> Command for SpawnLevel<B> {
                 map_entities_reflect.map_entities(world, &mut entity_map, &x);
             }
 
-            let children = if let Some(c) = world.get_mut::<Children>(root)  {
-                let children = c.0.iter()
-                        .map(|e| *entity_map.get(e).unwrap() )
-                        .collect::<Vec<_>>();
-                world
-                    .entity_mut(root)
-                    .insert(Children(smallvec::SmallVec::from_slice(&children)));    
-                children
-            } else {
-                unreachable!();                
-            };
-
-
-
-             let world_new_roots = scene_new_roots
+            let new_children = scene_roots
                  .iter()
                  .map(|e| entity_map.get(e).unwrap().clone())
                  .collect::<Vec<_>>();
-                 //info!("level new roots: {}", world_new_roots.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(", "))    ;
             
-            // call bundle fn
-            for e in world_new_roots.iter() {
-                (self.bundle_fn)(&mut world.entity_mut(*e));
-                // add marker with bundle fn
-            }
-
-            // fix children of root entity
-            if let Some(parent_e) = self.root {
-                let mut parent_cmd = world.entity_mut(parent_e);
-                let name = {
-                    let x = parent_cmd.get_mut::<Name>().unwrap();
-                    &x.to_string()
-                };
-                match parent_cmd.get_mut::<Children>() {
-                    Some(mut c) => {
-                        for re in world_new_roots.iter() {
-                            c.0.push(*re);
-                        }
-                    }
-                    None => {
-                        warn!(
-                            "level parent none - name: {:?} - {:?}",
-                            name,
-                            world_new_roots.len()
-                        );
-                        // root entity has no children, so we need to add one
-                        parent_cmd
-                            .insert(Children(smallvec::SmallVec::from_slice(&world_new_roots)));
-                    }
+            match world.get_mut::<Children>(self.root) {
+                Some(mut c) => { c.0.extend(new_children.clone()); }
+                None => {
+                    // create new children
+                    world
+                        .entity_mut(self.root)
+                        .insert(Children(smallvec::SmallVec::from_slice(&new_children)));
                 }
             }
 
-            if let Some(x) = self.root {
-                print_debug_list(&[x], world, "level root ");
-            }
-            print_debug_list(&world_new_roots, world, "level child");
+            // call bundle fn
+            // for e in new_children.iter() {
+            //     (self.bundle_fn)(&mut world.entity_mut(*e));
+            // }
+            
+            print_debug_list(&[self.root], world, "level root");            
+            print_debug_list(&new_children, world, "level child");
         })
     }
 }

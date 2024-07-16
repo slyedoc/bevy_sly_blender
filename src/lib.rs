@@ -26,25 +26,20 @@ pub mod registry;
 #[cfg(feature = "registry")]
 pub use registry::*;
 
-
 pub mod animation;
 pub use animation::*;
 
 use core::fmt;
 use std::path::PathBuf;
 
-use bevy::{
-    gltf::GltfExtras, prelude::*, render::primitives::Aabb,
-    utils::HashMap,
-};
+use bevy::{gltf::GltfExtras, prelude::*, render::primitives::Aabb, utils::HashMap};
 
 mod ronstring_to_reflect_component;
 pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet,
-        GltfFormat,
+        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
     };
 
     #[cfg(feature = "registry")]
@@ -66,7 +61,7 @@ pub(crate) const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 /// set for the two stages of blueprint based spawning :
-pub enum BlenderSet {    
+pub enum BlenderSet {
     Spawn,
     Injection,
 }
@@ -178,13 +173,13 @@ impl Plugin for BlenderPlugin {
             Update,
             (
                 // TODO: These Two are reversed right now form what I intended
-                // Was having issue where ProxyCollider::Mesh doesnt see all children unless it runs next frame                
-                BlenderSet::Injection,                                
+                // Was having issue where ProxyCollider::Mesh doesnt see all children unless it runs next frame
+                BlenderSet::Injection,
                 BlenderSet::Spawn,
             )
                 .chain(),
         )
-        // going for loading a level and its blueprints, and extras in 1 frame, 
+        // going for loading a level and its blueprints, and extras in 1 frame,
         // and another frame for each nesting level beyond that
         .add_systems(
             Update,
@@ -205,8 +200,7 @@ impl Plugin for BlenderPlugin {
             Update,
             (
                 spawn_gltf_extras,
-                aabb::compute_scene_aabbs
-                    .run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())               
+                aabb::compute_scene_aabbs.run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())
                 materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
             )
                 .chain()
@@ -258,7 +252,6 @@ fn spawn_gltf_extras(world: &mut World) {
         .collect::<Vec<(Entity, GltfExtras)>>();
 
     if !extras.is_empty() {
-        
         // add the components
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();
@@ -266,22 +259,20 @@ fn spawn_gltf_extras(world: &mut World) {
                 let reflect_components =
                     ronstring_to_reflect_component(&extra.value, &type_registry);
                 //let tmp_name = Name::new("tmp".to_string());
-                //let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();                
+                //let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();
                 // if extra.value.contains("orbit::") {
                 //     let msg = format!("{} - {}", name.clone(), extra.value)
                 //     .replace("\\\"", "\"")
-                //     .replace("\"", "");     
-                //     dbg!(msg);           
+                //     .replace("\"", "");
+                //     dbg!(msg);
                 // }
                 for (component, type_registration) in reflect_components {
-                    
                     let mut entity_mut = world.entity_mut(*entity);
                     type_registration
                         .data::<ReflectComponent>()
                         .expect("Unable to reflect component")
                         .insert(&mut entity_mut, &*component, &type_registry);
                 }
-
             }
         });
     }

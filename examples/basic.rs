@@ -84,9 +84,7 @@ fn setup_playing(mut commands: Commands, blender_assets: Res<BlenderAssets>) {
             .clone(),
         root: None,
         bundle_fn: |e| {
-            e.insert((
-                CleanupMarker,                
-            ));
-        }
+            e.insert((CleanupMarker,));
+        },
     });
 }

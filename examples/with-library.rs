@@ -12,12 +12,12 @@ pub enum AppState {
     Playing, // Primary State, most systems run while in this state
 }
 
-// Load 
+// Load
 #[derive(AssetCollection, Resource, Debug, Reflect)]
 pub struct LevelAssets {
     #[asset(path = "levels/BasicWithLib.glb")]
     pub basic: Handle<Gltf>,
-    
+
     // Loading all blue prints so that we know they are ready before we load the level
     #[asset(path = "blueprints", collection, collection(typed, mapped))]
     pub levels: HashMap<String, Handle<Gltf>>,
@@ -58,9 +58,8 @@ fn cleanup(mut commands: Commands, query: Query<Entity, With<CleanupMarker>>) {
 
 // Setup the loading screen
 fn setup(mut commands: Commands) {
-
     commands.spawn((
-        Camera2dBundle::default(), 
+        Camera2dBundle::default(),
         Name::new("MainCamera"),
         CleanupMarker,
     ));

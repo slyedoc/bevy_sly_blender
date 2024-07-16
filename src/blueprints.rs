@@ -123,7 +123,7 @@ impl Command for SpawnBlueprint {
             // for now we force a single root entity, that can have many children, this is due to
             // component_meta needing to be on object instead of collection
             // if that chagnes remove this assert
-            
+
             // skip SCENE_ROOT, its just a placeholder
             let scene_roots = scene
                 .world
@@ -188,22 +188,24 @@ impl Command for SpawnBlueprint {
                         // if at new root level, dont overwrite a few things
                         if scene_roots.contains(&scene_entity) {
                             // dont overwrite a few things
-                            if (type_id == TypeId::of::<Name>() && world.get_mut::<Name>(*entity).is_some()) ||
-                                type_id == TypeId::of::<Parent>() ||
-                                type_id == TypeId::of::<Children>() ||
-                                type_id == TypeId::of::<Transform>() {                                
+                            if (type_id == TypeId::of::<Name>()
+                                && world.get_mut::<Name>(*entity).is_some())
+                                || type_id == TypeId::of::<Parent>()
+                                || type_id == TypeId::of::<Children>()
+                                || type_id == TypeId::of::<Transform>()
+                            {
                                 continue;
                             }
-                            // could apply the root entity's transform to existing entity                            
+                            // could apply the root entity's transform to existing entity
                             // if type_id == TypeId::of::<Transform>() {
-                            //  let scene_trans =scene.world.get::<Transform>(scene_entity).unwrap();                            
+                            //  let scene_trans =scene.world.get::<Transform>(scene_entity).unwrap();
                             //  let mut trans = world.get_mut::<Transform>(*entity).unwrap();
                             //  let new_trans = trans.mul_transform(*scene_trans);
                             //  *trans = new_trans;
                             //}
                             // copy the rest
                         } else {
-                            update_list.insert(*entity); // add to map list                            
+                            update_list.insert(*entity); // add to map list
                         }
 
                         // copy the component from scene to world
@@ -233,7 +235,9 @@ impl Command for SpawnBlueprint {
                 .collect::<Vec<_>>();
 
             match world.get_mut::<Children>(self.root) {
-                Some(mut c) => { c.0.extend(new_children.clone()); }
+                Some(mut c) => {
+                    c.0.extend(new_children.clone());
+                }
                 None => {
                     // create new children
                     world

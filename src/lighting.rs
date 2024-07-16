@@ -3,7 +3,6 @@ use bevy::prelude::*;
 
 use crate::BlenderSet;
 
-
 pub(crate) fn plugin(app: &mut App) {
     app.register_type::<BlenderBackgroundShader>()
         .register_type::<BlenderShadowSettings>()

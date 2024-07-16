@@ -1,7 +1,8 @@
 use bevy::{
     ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
     gltf::Gltf,
-    prelude::*, utils::HashSet,
+    prelude::*,
+    utils::HashSet,
 };
 #[allow(unused_imports)]
 use smallvec::smallvec;
@@ -61,7 +62,8 @@ pub(crate) fn spawn_level_from_gltf(
 
 /// Command a level to be spawned
 #[derive(Debug)]
-pub struct SpawnLevel//<F>
+pub struct SpawnLevel
+//<F>
 //where F: Fn(&mut EntityWorldMut) + Send + Sync + 'static,
 {
     pub handle: Handle<Gltf>,
@@ -129,7 +131,7 @@ impl Command for SpawnLevel {
             }
 
             // map of scene to app world entities
-            let mut entity_map = EntityHashMap::default();            
+            let mut entity_map = EntityHashMap::default();
             entity_map.insert(SCENE_ROOT, self.root);
 
             // list of world entities that are not children
@@ -182,8 +184,9 @@ impl Command for SpawnLevel {
                         // if a new root node, just add it
                         if scene_roots.contains(&scene_entity) {
                             // dont copy parent component of root entity
-                            if type_id == TypeId::of::<Parent>() || 
-                            type_id == TypeId::of::<Children>()  {                                
+                            if type_id == TypeId::of::<Parent>()
+                                || type_id == TypeId::of::<Children>()
+                            {
                                 continue;
                             }
                         } else {
@@ -207,17 +210,19 @@ impl Command for SpawnLevel {
                 let Some(map_entities_reflect) = registration.data::<ReflectMapEntities>() else {
                     continue;
                 };
-                let x = entities.iter().map(|x| x.clone() ).collect::<Vec<_>>();
+                let x = entities.iter().map(|x| x.clone()).collect::<Vec<_>>();
                 map_entities_reflect.map_entities(world, &mut entity_map, &x);
             }
 
             let new_children = scene_roots
-                 .iter()
-                 .map(|e| entity_map.get(e).unwrap().clone())
-                 .collect::<Vec<_>>();
-            
+                .iter()
+                .map(|e| entity_map.get(e).unwrap().clone())
+                .collect::<Vec<_>>();
+
             match world.get_mut::<Children>(self.root) {
-                Some(mut c) => { c.0.extend(new_children.clone()); }
+                Some(mut c) => {
+                    c.0.extend(new_children.clone());
+                }
                 None => {
                     // create new children
                     world
@@ -230,8 +235,8 @@ impl Command for SpawnLevel {
             // for e in new_children.iter() {
             //     (self.bundle_fn)(&mut world.entity_mut(*e));
             // }
-            
-            print_debug_list(&[self.root], world, "level root");            
+
+            print_debug_list(&[self.root], world, "level root");
             print_debug_list(&new_children, world, "level child");
         })
     }

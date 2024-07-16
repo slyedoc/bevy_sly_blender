@@ -1,19 +1,21 @@
 use bevy::{
-    prelude::*,
     ecs::{
         reflect::{AppTypeRegistry, ReflectComponent, ReflectResource},
         world::World,
     },
+    prelude::*,
     reflect::{TypeInfo, TypeRegistration, VariantInfo},
 };
-use std::{fs::File, path::{Path, PathBuf}};
 use serde_json::{json, Map, Value};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use crate::BlenderPluginConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Resource)]
 pub struct AssetRoot(pub PathBuf);
-
 
 pub fn export_types(world: &mut World) {
     let config = world
@@ -26,7 +28,7 @@ pub fn export_types(world: &mut World) {
     // match fs::canonicalize(&registry_save_path) {
     //     Ok(full_path) => info!("Registry path is: {}", full_path.display()),
     //     Err(e) => println!("Error resolving Registry path: {}", e),
-    // }    
+    // }
     let writer = File::create(&registry_save_path).expect("should have created schema file");
 
     let components_to_filter_out = &config.component_filter.clone();

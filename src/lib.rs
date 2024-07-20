@@ -14,11 +14,6 @@ pub mod blueprints;
 pub use blueprints::*;
 pub use levels::*;
 
-#[cfg(feature = "physics")]
-pub mod physics;
-
-//[cfg(feature = "physics")]
-//pub use physics::*;
 
 #[cfg(feature = "registry")]
 pub mod registry;

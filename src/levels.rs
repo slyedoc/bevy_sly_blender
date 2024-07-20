@@ -1,12 +1,9 @@
-use bevy::{
-    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
+use bevy::{    
     gltf::Gltf,
     prelude::*,
-    utils::HashSet,
 };
-use std::any::TypeId;
 
-use crate::{print_debug_list, BlenderPluginConfig, GltfFormat, SCENE_ROOT};
+use crate::{BlenderPluginConfig, GltfFormat };
 
 /// Helper to spawn from name blueprints
 #[derive(Component, Reflect, Default, Debug)]

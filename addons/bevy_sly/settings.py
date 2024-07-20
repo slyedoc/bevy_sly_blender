@@ -313,7 +313,6 @@ class BevySettings(bpy.types.PropertyGroup):
         # dont like deleting, but i keep getting old files
         self.clear_and_create_dirs() # create the directories if they dont exist
 
-
         # Figure out what to export
         [level_scenes, library_scenes] = self.get_scenes()
         level_scenes.sort(key = lambda a: a.name.lower())                  
@@ -324,8 +323,10 @@ class BevySettings(bpy.types.PropertyGroup):
         blueprints_to_export = self.get_blueprints_to_export()                                     
         blueprints_to_export.sort(key = lambda a: a.name.lower())
         blueprint_count = len(blueprints_to_export)
-
-        used_material_names = self.get_all_materials(library_scenes)
+        
+        level_material_names = self.get_all_materials(level_scenes, False)
+        library_material_names = self.get_all_materials(library_scenes, True)
+        material_names = list(set(library_material_names + level_material_names))
         current_project_name = Path(bpy.context.blend_data.filepath).stem
 
         # update the list of tracked exports
@@ -334,7 +335,7 @@ class BevySettings(bpy.types.PropertyGroup):
         #bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
 
         print("-------------------------------")
-        print("Materials    : ", len(used_material_names))        
+        print("Materials    : ", len(material_names))        
         print("Levels       : ", level_count)
         print("Blueprints   : ", len(self.data.internal_blueprints))        
         print("-------------------------------")
@@ -344,10 +345,10 @@ class BevySettings(bpy.types.PropertyGroup):
         try:           
             # Export materials by creating scene with a cube for each material then save it
             material_time = time.time()
-            print(f"exporting materials (1/1) - {current_project_name}")
+            print(f"exporting materials (all { len(material_names) }) - {current_project_name}" )
             gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
             material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
-            for index, material_name in enumerate(used_material_names):
+            for index, material_name in enumerate(material_names):
                 object = make_cube("Material_"+material_name, location=[index * 0.2,0,0], rotation=[0,0,0], scale=[1,1,1], scene=material_scene)
                 material = bpy.data.materials[material_name]
                 if material:
@@ -374,14 +375,14 @@ class BevySettings(bpy.types.PropertyGroup):
             level_time = time.time()
             level_gltf_time = 0
             for index, level_scene in enumerate(level_scenes):                                                             
-                print(f"exporting level {index+1}/{level_count}) - {level_scene.name}")                
+                print(f"exporting level ({index+1}/{level_count}) - {level_scene.name}")                
                 gltf_path = os.path.join(self.assets_path, LEVELS_PATH, level_scene.name)    
                 temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+ level_scene.name)  
                 copy_collection(level_scene.collection, temp_scene.collection)
                 if EXPORT_SCENE_SETTINGS:
                     add_scene_settings(temp_scene)
                 tmp_time = time.time()
-                export_scene(temp_scene, {}, gltf_path)
+                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
                 level_gltf_time += time.time() - tmp_time
 
                 delete_scene(temp_scene)
@@ -1707,22 +1708,21 @@ class BevySettings(bpy.types.PropertyGroup):
                     filtered_blueprints.append(blueprint)
 
         return  list(set(filtered_blueprints))
-        
 
     # set MaterialInfo for export, and returns list of used materials
-    def get_all_materials(self, library_scenes) -> list[str]: 
+    def get_all_materials(self, scenes, blueprint: bool) -> list[str]: 
         used_material_names = []
-        
-        for scene in library_scenes:
+        for scene in scenes:
+            
             root_collection = scene.collection
             for cur_collection in traverse_tree(root_collection):
-                if cur_collection.name in self.data.blueprint_names:
+                # if we are exporting blueprints, we only want
+                # collection in our list, else we want all collections
+                if not blueprint or cur_collection.name in self.data.blueprint_names:
                     for object in cur_collection.all_objects:
                         for m in object.material_slots:            
                             used_material_names.append(m.material.name)            
-
-        used_material_names = list(set(used_material_names))
-        return used_material_names
+        return list(set(used_material_names))        
 
     # create the directories for the exported assets if they do not exist
     def clear_and_create_dirs(self):
@@ -1734,7 +1734,9 @@ class BevySettings(bpy.types.PropertyGroup):
                 # clear out the folder
                 for file in os.listdir(folder):
                     if file.endswith(GLTF_EXTENSION):
-                        os.remove(os.path.join(folder, file))
+                        f = os.path.join(folder, file)
+                        print(f"removing {f}")
+                        os.remove(f)
                 
 
 # export scene to gltf with io_scene_gltf

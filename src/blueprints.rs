@@ -72,11 +72,9 @@ pub(crate) fn spawn_blueprint_from_gltf(
         commands
             .entity(entity)
             // need extra child to avoid loosing this entities transform
-            .with_children(|parent| {
-                parent.spawn(SceneBundle {
-                    scene: scene.clone(),
-                    ..Default::default()
-                });
+            .insert(SceneBundle {
+                scene: scene.clone(),
+                ..Default::default()
             });
     }
 }
@@ -125,25 +123,20 @@ impl Command for SpawnBlueprint {
             // if that chagnes remove this assert
 
             // skip SCENE_ROOT, its just a placeholder
-            let scene_roots = scene
-                .world
-                .get::<Children>(SCENE_ROOT)
-                .map(|c| c.0.to_vec())
-                .unwrap();
+            let scene_roots = scene.world.get::<Children>(SCENE_ROOT).unwrap();
             assert!(scene_roots.iter().len() == 1);
 
             // get the children of that scene_child, those will be the new children of self.root
-            let scene_children: Vec<Entity> = scene_roots
-                .iter()
-                .map(|c| {
-                    scene
-                        .world
-                        .get::<Children>(*c)
-                        .map(|c| c.0.to_vec())
-                        .unwrap_or_else(|| vec![])
-                })
-                .flatten()
-                .collect();
+            // let scene_children: Vec<Entity> = scene_roots
+            //     .iter()
+            //     .map(|c| {
+            //         scene
+            //             .world
+            //             .get::<Children>(*c)
+            //             .unwrap_or_else(|| vec![])
+            //     })
+            //     .flatten()
+            //     .collect();
 
             // dbg!(&scene_roots);
             // dbg!(&scene_children);
@@ -229,25 +222,26 @@ impl Command for SpawnBlueprint {
                 map_entities_reflect.map_entities(world, &mut entity_map, &x);
             }
 
-            let new_children = scene_children
-                .iter()
-                .map(|e| entity_map.get(e).unwrap().clone())
-                .collect::<Vec<_>>();
+            // let new_children = scene_children
+            //     .iter()
+            //     .map(|e| entity_map.get(e).unwrap().clone())
+            //     .collect::<Vec<_>>();
 
-            match world.get_mut::<Children>(self.root) {
-                Some(mut c) => {
-                    c.0.extend(new_children.clone());
-                }
-                None => {
-                    // create new children
-                    world
-                        .entity_mut(self.root)
-                        .insert(Children(smallvec::SmallVec::from_slice(&new_children)));
-                }
-            }
+            // TODO: This is broke
+            // match world.get_mut::<Children>(self.root) {
+            //     Some(mut c) => {
+            //         c.0.extend(new_children.clone());
+            //     }
+            //     None => {
+            //         // create new children
+            //         world
+            //             .entity_mut(self.root)
+            //             .insert(Children(smallvec::SmallVec::from_slice(&new_children)));
+            //     }
+            // }
 
-            print_debug_list(&[self.root], world, "blueprint root ");
-            print_debug_list(&new_children, world, "blueprint child");
+            // print_debug_list(&[self.root], world, "blueprint root ");
+            // print_debug_list(&new_children, world, "blueprint child");
 
             // notify anyone that cares that the blueprint has been spawned
             world.send_event(BlueprintSpawned(self.root)); // used by aabb generation
@@ -266,7 +260,7 @@ pub fn print_debug_list(debug_list: &[Entity], world: &mut World, title: &str) {
             .unwrap_or("N/A".to_owned());
         let parent = world
             .get::<Parent>(*e)
-            .map(|n| format!("{}", n.0))
+            .map(|n| format!("{}", n.to_string()))
             .unwrap_or("N/A".to_owned());
 
         let translation = world
@@ -276,11 +270,11 @@ pub fn print_debug_list(debug_list: &[Entity], world: &mut World, title: &str) {
         let children = world
             .get::<Children>(*e)
             .map(|c| {
-                let x =
-                    c.0.iter()
-                        .map(|e| format!("{}", e))
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                let x = c
+                    .iter()
+                    .map(|e| format!("{}", e))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 x
             })
             .unwrap_or_else(|| "N/A".to_owned());

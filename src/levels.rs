@@ -4,8 +4,6 @@ use bevy::{
     prelude::*,
     utils::HashSet,
 };
-#[allow(unused_imports)]
-use smallvec::smallvec;
 use std::any::TypeId;
 
 use crate::{print_debug_list, BlenderPluginConfig, GltfFormat, SCENE_ROOT};
@@ -48,29 +46,46 @@ pub struct LevelMarker;
 pub(crate) fn spawn_level_from_gltf(
     mut commands: Commands,
     spawn_placeholders: Query<(Entity, &LevelGltf), Added<LevelGltf>>,
+    assets_gltf: Res<Assets<Gltf>>,
 ) {
     for (e, gltf) in spawn_placeholders.iter() {
+        let gltf = assets_gltf
+        .get(&gltf.0)
+        .unwrap_or_else(|| panic!("gltf file {:?} should have been loaded", &gltf.0));
+
+    // WARNING we work under the assumtion that there is ONLY ONE named scene, and that the first one is the right one
+    let main_scene_name = gltf
+        .named_scenes
+        .keys()
+        .next()
+        .expect("there should be at least one named scene in the gltf file to spawn");
+
+    let scene = &gltf.named_scenes[main_scene_name];
+
+        #[cfg(not(feature = "nested"))]
         commands.add(SpawnLevel {
             handle: gltf.0.clone(),
             root: e,
-            // bundle_fn: |e| {
-            //     e.insert(LevelMarker);
-            // },
         });
+        
+        #[cfg(feature = "nested")]
+        commands.entity(e).insert(SceneBundle {
+            scene: scene.clone(),
+            ..Default::default()
+        });
+        
     }
 }
+#[cfg(not(feature = "nested"))]
 
 /// Command a level to be spawned
 #[derive(Debug)]
-pub struct SpawnLevel
-//<F>
-//where F: Fn(&mut EntityWorldMut) + Send + Sync + 'static,
-{
+pub struct SpawnLevel {
     pub handle: Handle<Gltf>,
     pub root: Entity,
-    //pub bundle_fn: F,
 }
 
+#[cfg(not(feature = "nested"))]
 impl Command for SpawnLevel {
     fn apply(self, world: &mut World) {
         let assets_gltf = world.resource::<Assets<Gltf>>();
@@ -139,8 +154,7 @@ impl Command for SpawnLevel {
 
             let scene_roots = scene
                 .world
-                .get::<Children>(SCENE_ROOT)
-                .map(|c| c.0.to_vec())
+                .get::<Children>(SCENE_ROOT)                
                 .unwrap();
 
             // create entities and copy components
@@ -214,30 +228,30 @@ impl Command for SpawnLevel {
                 map_entities_reflect.map_entities(world, &mut entity_map, &x);
             }
 
-            let new_children = scene_roots
-                .iter()
-                .map(|e| entity_map.get(e).unwrap().clone())
-                .collect::<Vec<_>>();
+            // let new_children = scene_roots
+            //     .iter()
+            //     .map(|e| entity_map.get(e).unwrap().clone())
+            //     .collect::<Vec<_>>();
 
-            match world.get_mut::<Children>(self.root) {
-                Some(mut c) => {
-                    c.0.extend(new_children.clone());
-                }
-                None => {
-                    // create new children
-                    world
-                        .entity_mut(self.root)
-                        .insert(Children(smallvec::SmallVec::from_slice(&new_children)));
-                }
-            }
+            // match world.get_mut::<Children>(self.root) {
+            //     Some(mut c) => {
+            //         c.extend(new_children.clone());
+            //     }
+            //     None => {
+            //         // create new children
+            //         world
+            //             .entity_mut(self.root)
+            //             .insert(Children(smallvec::SmallVec::from_slice(&new_children)));
+            //     }
+            // }
 
             // call bundle fn
             // for e in new_children.iter() {
             //     (self.bundle_fn)(&mut world.entity_mut(*e));
             // }
 
-            print_debug_list(&[self.root], world, "level root");
-            print_debug_list(&new_children, world, "level child");
+            //print_debug_list(&[self.root], world, "level root");
+            //print_debug_list(&new_children, world, "level child");
         })
     }
 }

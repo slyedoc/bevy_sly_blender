@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_sly_blender::prelude::*;
 
 // TODO: this works with art/basic.blend, but you have to run this first to generate the registry, which works but errors due to missing assets.
@@ -18,7 +19,9 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
+            avian3d::PhysicsPlugins::default(),
             // our plugin, can use set to customize if needed
+            WorldInspectorPlugin::default(),
             BlenderPlugin {
                 save_path: "../art/basic-registry.json".into(),
                 ..default()
@@ -35,6 +38,11 @@ fn main() {
         .add_systems(OnEnter(AppState::Playing), (cleanup, setup_playing).chain())
         .run();
 }
+
+// Something to add
+#[allow(dead_code)]
+#[derive(Component, Default)]
+struct TestComponent(u8);
 
 // Cleanup the loading screen
 #[derive(Component, Default)]
@@ -74,17 +82,49 @@ fn setup(mut commands: Commands) {
 }
 
 // Setup the playing screen
-fn setup_playing(mut commands: Commands, blender_assets: Res<BlenderAssets>) {
-    commands.add(SpawnLevel {
+fn setup_playing(
+    mut commands: Commands,
+    blender_assets: Res<BlenderAssets>,
+    assets_gltf: Res<Assets<Gltf>>,
+) {
+    let gltf_handle = blender_assets
+        .levels
+        .values()
+        .next()
+        .expect("no levels loaded")
+        .clone();
+
+    let gltf = assets_gltf
+        .get(&gltf_handle)
+        .expect("gltf file should have been loaded");
+
+    // WARNING we work under the assumtion that there is ONLY ONE named scene, and that the first one is the right one
+    let main_scene_name = gltf
+        .named_scenes
+        .keys()
+        .next()
+        .expect("there should be at least one named scene in the gltf file to spawn");
+
+    // let scene  = assets_scene.get(scene_handle).expect("scene should have been loaded");
+    // let dyn_scene = assets_dyn_scene.add(DynamicScene::from_world(&scene.world));
+        
+    let s = gltf.named_scenes[main_scene_name].clone();
+    #[cfg(feature = "nested")]
+    commands.spawn((
+        Name::new("basic-level"),
+        TransformBundle::default(),
+        VisibilityBundle::default(),
+        s
+    ));
+
+    #[cfg(not(feature = "nested"))]
+    commands.spawn(SpawnLevel {
         handle: blender_assets
             .levels
             .values()
             .next()
             .expect("no levels loaded")
             .clone(),
-        root: None,
-        bundle_fn: |e| {
-            e.insert((CleanupMarker,));
-        },
+        root: level,
     });
 }

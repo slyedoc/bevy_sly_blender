@@ -140,8 +140,7 @@ impl Plugin for BlenderPlugin {
 
         app.add_plugins((
             lighting::plugin, // custom lighting
-            #[cfg(feature = "physics")]
-            physics::plugin,
+
         ))
         // rest
         .register_type::<BlueprintName>()

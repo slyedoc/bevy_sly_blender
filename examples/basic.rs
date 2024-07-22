@@ -7,6 +7,21 @@ use bevy_sly_blender::prelude::*;
 // then save that art/basic.blend then run this again
 // what would be ideal
 
+use bevy::{gltf::Gltf, prelude::*, utils::HashMap};
+use bevy_asset_loader::prelude::*;
+
+#[derive(AssetCollection, Resource, Debug, Reflect)]
+pub struct GameAssets {
+    #[asset(path = "blueprints", collection(typed, mapped))]
+    pub blueprints: HashMap<String, Handle<Gltf>>,
+
+    #[asset(path = "levels", collection(typed, mapped))]
+    pub levels: HashMap<String, Handle<Gltf>>,
+
+    #[asset(path = "materials", collection(typed, mapped))]
+    pub materials: HashMap<String, Handle<Gltf>>,
+}
+
 // App state to manage loading
 #[derive(Default, States, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum AppState {
@@ -32,11 +47,39 @@ fn main() {
             LoadingState::new(AppState::Loading)
                 .continue_to_state(AppState::Playing)
                 // load all blueprints, levels, and materials
-                .load_collection::<BlenderAssets>(),
+                .load_collection::<GameAssets>(),
         )
         .add_systems(Startup, setup)
         .add_systems(OnEnter(AppState::Playing), (cleanup, setup_playing).chain())
+        .add_systems(Update, update_material.run_if(resource_exists::<GameAssets>))
         .run();
+}
+
+fn update_material(
+    mut commands: Commands,
+    mut load_event: EventReader<LoadMaterial>,
+    assets: Res<GameAssets>,
+    assets_gltf: Res<Assets<Gltf>>,
+) {
+    // get first material gltf
+    let gltf = assets
+        .materials
+        .values()
+        .next()
+        .expect("only expect one material library right now");
+
+    let mat_gltf = assets_gltf
+        .get(gltf.id())
+        .expect("gltf should have been loaded");
+
+    for event in load_event.read() {
+        if let Some(mat) = mat_gltf.named_materials.get(event.material_name.as_str()) {
+            info!("material found - {:?}", &event.material_name);
+            commands.entity(event.entity).insert(mat.clone());
+        } else {
+            panic!("material should have been found - {:?}", &event.material_name);
+        }        
+    }
 }
 
 // Something to add
@@ -84,7 +127,7 @@ fn setup(mut commands: Commands) {
 // Setup the playing screen
 fn setup_playing(
     mut commands: Commands,
-    blender_assets: Res<BlenderAssets>,
+    blender_assets: Res<GameAssets>,
     assets_gltf: Res<Assets<Gltf>>,
 ) {
     let gltf_handle = blender_assets
@@ -107,14 +150,14 @@ fn setup_playing(
 
     // let scene  = assets_scene.get(scene_handle).expect("scene should have been loaded");
     // let dyn_scene = assets_dyn_scene.add(DynamicScene::from_world(&scene.world));
-        
+
     let s = gltf.named_scenes[main_scene_name].clone();
     #[cfg(feature = "nested")]
     commands.spawn((
         Name::new("basic-level"),
         TransformBundle::default(),
         VisibilityBundle::default(),
-        s
+        s,
     ));
 
     #[cfg(not(feature = "nested"))]

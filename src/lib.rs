@@ -1,28 +1,27 @@
 #![feature(const_type_id)] // for type_id exclude list
 
-pub mod aabb;
-pub mod levels;
-pub mod lighting;
-pub mod materials;
+mod animation;
+pub use animation::*;
 
-mod assets;
-pub use assets::*;
+pub mod aabb;
+
+mod levels;
+pub use levels::*;
+
+pub mod lighting;
+
+mod materials;
+pub use materials::*;
 
 pub use lighting::*;
 
-pub mod blueprints;
+mod blueprints;
 pub use blueprints::*;
-pub use levels::*;
-
 
 #[cfg(feature = "registry")]
 pub mod registry;
-
 #[cfg(feature = "registry")]
 pub use registry::*;
-
-pub mod animation;
-pub use animation::*;
 
 use core::fmt;
 use std::path::PathBuf;
@@ -34,7 +33,7 @@ pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        assets::*, blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
+        blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
     };
 
     #[cfg(feature = "registry")]
@@ -51,7 +50,9 @@ pub mod prelude {
 /// we make this last assumption because component_meta has to be on object instead of collection, so if we want
 /// to be able to set component on the blueprint entity there cant be many children
 /// See [`SpawnLevel`] and [`SpawnBlueprint`] for there use
+#[cfg(not(feature = "nested"))]
 pub(crate) const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
+#[cfg(not(feature = "nested"))]
 pub(crate) const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
@@ -135,7 +136,6 @@ impl Plugin for BlenderPlugin {
 
         app.add_plugins((
             lighting::plugin, // custom lighting
-
         ))
         // rest
         .register_type::<BlueprintName>()
@@ -150,6 +150,7 @@ impl Plugin for BlenderPlugin {
         .register_type::<HashMap<String, HashMap<u32, Vec<String>>>>()
         .add_event::<AnimationMarkerReached>()
         .add_event::<BlueprintSpawned>()
+        .add_event::<LoadMaterial>()
         .register_type::<HashMap<String, Vec<String>>>()
         .insert_resource(BlenderPluginConfig {
             format: self.format,
@@ -178,14 +179,12 @@ impl Plugin for BlenderPlugin {
         .add_systems(
             Update,
             (
-                spawn_from_level_name,
-                apply_deferred, // run LevelGltf
-                spawn_level_from_gltf,
-                apply_deferred, // run SpawnLevel commands
+                //spawn_from_level_name,
+                //spawn_level_from_gltf,
                 spawn_from_blueprint_name,
-                apply_deferred, // run BlueprintGltf commands
-                spawn_blueprint_from_gltf,
-                apply_deferred, // run SpawnBlueprint commands
+                //apply_deferred, // run BlueprintGltf commands
+                //spawn_blueprint_from_gltf,
+                //apply_deferred, // run SpawnBlueprint commands
             )
                 .chain()
                 .in_set(BlenderSet::Spawn),
@@ -195,7 +194,7 @@ impl Plugin for BlenderPlugin {
             (
                 spawn_gltf_extras,
                 aabb::compute_scene_aabbs.run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())
-                materials::materials_inject.run_if(resource_exists::<BlenderAssets>),
+                materials::materials_inject,
             )
                 .chain()
                 .in_set(BlenderSet::Injection),
@@ -246,6 +245,7 @@ fn spawn_gltf_extras(world: &mut World) {
         .collect::<Vec<(Entity, GltfExtras)>>();
 
     if !extras.is_empty() {
+        info!("spawning gltf extras: {:?}", extras);
         // add the components
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();

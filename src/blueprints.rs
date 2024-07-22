@@ -1,14 +1,13 @@
 //#[cfg(feature = "physics")]
 //use avian3d::collision::ColliderParent;
-use crate::{BlenderPluginConfig, BlueprintSpawned, GltfFormat, SCENE_NEW_ROOT, SCENE_ROOT};
+use crate::{BlenderPluginConfig, GltfFormat};
 use bevy::{
-    ecs::{entity::EntityHashMap, reflect::ReflectMapEntities, world::Command},
+
     gltf::Gltf,
     prelude::*,
-    utils::HashSet,
+
 };
-use core::panic;
-use std::any::TypeId;
+
 
 /// Helper to spawn from name blueprints
 #[derive(Component, Reflect, Default, Debug)]
@@ -41,6 +40,8 @@ pub(crate) fn spawn_from_blueprint_name(
         commands.entity(e).insert(BlueprintGltf(path));
     }
 }
+
+#[cfg(not(feature = "nested"))]
 
 pub(crate) fn spawn_blueprint_from_gltf(
     mut commands: Commands,
@@ -79,11 +80,12 @@ pub(crate) fn spawn_blueprint_from_gltf(
     }
 }
 
+#[cfg(not(feature = "nested"))]
 pub struct SpawnBlueprint {
     pub root: Entity,
     pub handle: Handle<Scene>,
 }
-
+#[cfg(not(feature = "nested"))]
 impl Command for SpawnBlueprint {
     fn apply(self, world: &mut World) {
         let id = self.handle.id();

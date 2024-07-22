@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 
+#[cfg(not(feature = "nested"))]
 use crate::{BlenderPluginConfig, GltfFormat };
 
 /// Helper to spawn from name blueprints
@@ -15,6 +16,7 @@ pub struct LevelName(pub String);
 #[reflect(Component)]
 pub struct LevelGltf(pub Handle<Gltf>);
 
+#[cfg(not(feature = "nested"))]
 pub(crate) fn spawn_from_level_name(
     mut commands: Commands,
     query: Query<(Entity, &LevelName), Added<LevelName>>,
@@ -39,7 +41,7 @@ pub(crate) fn spawn_from_level_name(
 
 #[derive(Component, Reflect, Default, Debug)]
 pub struct LevelMarker;
-
+#[allow(dead_code)]
 pub(crate) fn spawn_level_from_gltf(
     mut commands: Commands,
     spawn_placeholders: Query<(Entity, &LevelGltf), Added<LevelGltf>>,

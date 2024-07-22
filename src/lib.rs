@@ -245,7 +245,7 @@ fn spawn_gltf_extras(world: &mut World) {
         .collect::<Vec<(Entity, GltfExtras)>>();
 
     if !extras.is_empty() {
-        info!("spawning gltf extras: {:?}", extras);
+        //info!("spawning gltf extras: {:?}", extras);
         // add the components
         world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
             let type_registry = type_registry.read();

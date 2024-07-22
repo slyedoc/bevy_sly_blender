@@ -1,4 +1,4 @@
-use bevy::{gltf::Gltf, prelude::*, reflect::Reflect};
+use bevy::{prelude::*, reflect::Reflect};
 
 // Requires [glTF-Blender-IO](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch so MaterialName is added
 
@@ -14,7 +14,7 @@ pub struct LoadMaterial {
     pub material_name: String,
 }
 
-/// system that injects / replaces materials from material library
+/// system that notifies the LoadMaterial event, so you can handle it yourself for now
 ///
 ///
 pub(crate) fn materials_inject(

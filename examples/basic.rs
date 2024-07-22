@@ -73,8 +73,7 @@ fn update_material(
         .expect("gltf should have been loaded");
 
     for event in load_event.read() {
-        if let Some(mat) = mat_gltf.named_materials.get(event.material_name.as_str()) {
-            info!("material found - {:?}", &event.material_name);
+        if let Some(mat) = mat_gltf.named_materials.get(event.material_name.as_str()) {            
             commands.entity(event.entity).insert(mat.clone());
         } else {
             panic!("material should have been found - {:?}", &event.material_name);

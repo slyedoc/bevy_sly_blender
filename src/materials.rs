@@ -17,6 +17,7 @@ pub(crate) fn materials_inject(
     blender_assets: Res<BlenderAssets>,
 ) {
     for (e, material_name) in material_infos.iter() {
+        info!("injecting material {:?}", &material_name.0);
         // get first material gltf
         let gltf = blender_assets
             .materials

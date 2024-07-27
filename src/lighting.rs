@@ -8,7 +8,7 @@ pub(crate) fn plugin(app: &mut App) {
         .register_type::<BlenderShadowSettings>()
         .register_type::<BlenderLightShadows>()
         .add_systems(
-            Update,
+            PostUpdate,
             (process_lights, process_shadowmap, process_background_shader)
                 .after(BlenderSet::Injection),
         );

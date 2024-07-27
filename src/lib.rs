@@ -1,12 +1,9 @@
 #![feature(const_type_id)] // for type_id exclude list
 
-mod animation;
-pub use animation::*;
+// mod animation;
+// pub use animation::*;
 
 pub mod aabb;
-
-mod levels;
-pub use levels::*;
 
 pub mod lighting;
 
@@ -33,7 +30,7 @@ pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        blueprints::*, levels::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
+        blueprints::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
     };
 
     #[cfg(feature = "registry")]
@@ -50,15 +47,15 @@ pub mod prelude {
 /// we make this last assumption because component_meta has to be on object instead of collection, so if we want
 /// to be able to set component on the blueprint entity there cant be many children
 /// See [`SpawnLevel`] and [`SpawnBlueprint`] for there use
-#[cfg(not(feature = "nested"))]
-pub(crate) const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
-#[cfg(not(feature = "nested"))]
-pub(crate) const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
+// #[cfg(not(feature = "nested"))]
+// pub(crate) const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
+// #[cfg(not(feature = "nested"))]
+// pub(crate) const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 /// set for the two stages of blueprint based spawning :
 pub enum BlenderSet {
-    Spawn,
+    //Spawn,
     Injection,
 }
 
@@ -108,6 +105,7 @@ pub struct BlenderPluginConfig {
     pub aabb_cache: HashMap<String, Aabb>, // cache for aabbs
 
     // registry config
+    #[allow(dead_code)]
     pub(crate) save_path: PathBuf,
     #[allow(dead_code)]
     pub(crate) component_filter: SceneFilter,
@@ -140,17 +138,7 @@ impl Plugin for BlenderPlugin {
         // rest
         .register_type::<BlueprintName>()
         .register_type::<materials::MaterialName>()
-        .register_type::<BlueprintAnimations>()
-        .register_type::<SceneAnimations>()
-        .register_type::<AnimationInfo>()
-        .register_type::<AnimationInfos>()
-        .register_type::<Vec<AnimationInfo>>()
-        .register_type::<AnimationMarkers>()
-        .register_type::<HashMap<u32, Vec<String>>>()
-        .register_type::<HashMap<String, HashMap<u32, Vec<String>>>>()
-        .add_event::<AnimationMarkerReached>()
         .add_event::<BlueprintSpawned>()
-        .add_event::<LoadMaterial>()
         .register_type::<HashMap<String, Vec<String>>>()
         .insert_resource(BlenderPluginConfig {
             format: self.format,
@@ -165,36 +153,32 @@ impl Plugin for BlenderPlugin {
             resource_filter: self.resource_filter.clone(),
         })
         .configure_sets(
-            Update,
+            PostUpdate,
             (
-                // TODO: These Two are reversed right now form what I intended
-                // Was having issue where ProxyCollider::Mesh doesnt see all children unless it runs next frame
                 BlenderSet::Injection,
-                BlenderSet::Spawn,
             )
                 .chain(),
         )
         // going for loading a level and its blueprints, and extras in 1 frame,
         // and another frame for each nesting level beyond that
+        // .add_systems(
+        //     Update,
+        //     (
+        //         //spawn_from_level_name,
+        //         //spawn_level_from_gltf,
+        //         spawn_from_blueprint_name,
+        //         //apply_deferred, // run BlueprintGltf commands
+        //         //spawn_blueprint_from_gltf,
+        //         //apply_deferred, // run SpawnBlueprint commands
+        //     )
+        //         .chain()
+        //         .in_set(BlenderSet::Spawn),
+        // )
         .add_systems(
-            Update,
-            (
-                //spawn_from_level_name,
-                //spawn_level_from_gltf,
-                spawn_from_blueprint_name,
-                //apply_deferred, // run BlueprintGltf commands
-                //spawn_blueprint_from_gltf,
-                //apply_deferred, // run SpawnBlueprint commands
-            )
-                .chain()
-                .in_set(BlenderSet::Spawn),
-        )
-        .add_systems(
-            Update,
+            PostUpdate,
             (
                 spawn_gltf_extras,
                 aabb::compute_scene_aabbs.run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())
-                materials::materials_inject,
             )
                 .chain()
                 .in_set(BlenderSet::Injection),

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{gltf::Gltf, prelude::*, utils::HashMap};
 use bevy_asset_loader::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_sly_blender::prelude::*;
@@ -6,9 +6,6 @@ use bevy_sly_blender::prelude::*;
 // TODO: this works with art/basic.blend, but you have to run this first to generate the registry, which works but errors due to missing assets.
 // then save that art/basic.blend then run this again
 // what would be ideal
-
-use bevy::{gltf::Gltf, prelude::*, utils::HashMap};
-use bevy_asset_loader::prelude::*;
 
 #[derive(AssetCollection, Resource, Debug, Reflect)]
 pub struct GameAssets {

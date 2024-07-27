@@ -57,7 +57,7 @@ fn components_string_to_components(
             type_registration.type_info().type_path(),
             parsed_value
         );
-
+        
         // usefull to determine what an entity looks like Serialized
         /*let test_struct = CameraRenderGraph::new("name");
         let serializer = ReflectSerializer::new(&test_struct, &type_registry);
@@ -88,6 +88,8 @@ fn components_string_to_components(
         let ignore = vec![
             // our selfs
             "Components_meta",
+            "Gltf2_animation_rest",
+            "CurrentUVSet",
             // shipwright_collection
             "Plating_generator",
             "Shipwright_collection",

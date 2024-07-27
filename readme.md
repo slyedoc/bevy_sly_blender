@@ -2,7 +2,7 @@
 
 > This is completely based off [Blender_bevy_components_workflow](https://github.com/kaosat-dev/Blender_bevy_components_workflow/), and you should go use it.
 
- A ton of work has gone into it and nearly every bit of functionality comes from there.  I finally started taking the time to learn blender after seeing Blender_bevy_components_workflow, then a month tracking [animation-fixes-and-improvements](https://github.com/kaosat-dev/Blender_bevy_components_workflow/tree/animation-fixes-and-improvements) while learning more blender.  I was trying to figure out a few things and may have gotten carried away resulting in this repo.
+ A ton of work has gone into it and nearly every bit of functionality comes from there. I wanted to understand it and iterate on it.
 
 ## Overview
 
@@ -10,46 +10,7 @@ Currently focused on an ideal happy path.  Going for simplicity and ease of use 
 
 Using [Blender 4.2 main branch](https://github.com/blender/blender), on 4.1 there is a bug causing crashes during gltf export that is fixed on main branch. [Build notes here](https://developer.blender.org/docs/handbook/building_blender/)
 
-Also using small fork of glTF-Blender-IO you can find [here](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info), only way to completely fix the material info issue with multiple materials per mesh.
-
-## TODO
-
-- [x] Figure out random crashes during export in io-scene-gltf2 - fixed main branch
-- [ ] Flatten Entity Hierarchy - having so many nested entities is a pain, and feels so foreign and complicates so many things and queries
-  - Have tried ever way I can think of using bevy_scenes, but it forces nesting that just gets in the way, have bypassed it completely now, see [SpawnBlueprint](./src/blueprints.rs) and [SpawnLevel](./src/levels.rs).
-    - Disabled for now, see `nested` feature, dont try to manage parent child relationships yourself
-- [X] Collaspse blender plugins to 1
-  - [X] Unify settings
-  - [X] flatten structure
-    - [X] removed assets_registry - was only used for ui experement (will see where that goes)
-    - [X] removed blueprints_registry - added to bevy_settings
-- [x] Collapse bevy plugins to 1
-- [x] Simplify paths
-- [x] Blueprints always on
-- [X] Material library always on
-- [X] Fix material info
-  - There is no way to know how many meshes io_scene_gltf2 would generate, so creating material info was not really possible.  A complete fix required a patch to [glTF-Blender-IO - material-info](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info) branch that adds a material name as mesh extra, only support one material library scene, looked at an extension to io_scene_gltf2, but the mesh hook doesn't receive material information from what I could tell
-- [ ] Hot Reloading - kinda broke this since not using bevy_scenes to spawn, for myself I have a f5 hotkey to reload current level in my app
-- [ ] Animations - how bad could it be (jk, its bad)
-- [ ] Simplify component_meta? - its taken a while to get my head how the blender plugin handles and creates components_meta and bevy_components, alot of the complexity comes from keeping many component_meta at a time, and when really only one is ever needed (for the selected object).  If I made that change, would it even need the all the class generation code to handle unique instances
-  - [ ] Could help with sync issues with component renames, currently using [script](./scripts/scene_objects.py) to find and delete
-  - [ ] is 1 of 2 reason to copy collections for export, other is to replace collection instances with blueprint object
-- [x] Build script Enums, see [doc](./docs/build.md), this kinda completes the loop to tell bevy what's been exported
-- [x] [Edit Collection Instance](./addons/bevy_sly/operators/edit_collection.py) is huge QOL improvement, can quickly edit a blueprint by right-clicking collection instance and selecting edit and edit in a clean scene without having to manage visibility of everything in the library scene
-- [x] limited scene settings component generation to copy only
-
-## Restrictions
-
-- Collection Instances(Blueprints) are required to have 1 root object, no base level children.  This is because component_meta is based on object and not collection, if that changes, this restriction can be lifted
-- One Blender file, got enough to troubleshoot without having to worry about multiple files for now
-- Remove configurable gltf export settings, there was a mountain of code for this and the issue has a history all its own, just going with sane defaults but I will need to come back to this
-  - Was a little mad when refactoring this out and finally seeing the only setting that changes between calls was ```'export_materials': 'PLACEHOLDER'```
-- Removed change detection, going to focus on worse case and come back to it, right now I get about 3 seconds for 7 levels and 206 blueprints, (most simple kenney assets). Good enough for now.
-- Removed asset loading stuff, uses bevy_asset_loader instead [BlenderAssets](./src/assets.rs)
-
-## Docs
-
-- [Level and Blueprint Enums](./docs/build.md)
+Also using small fork of glTF-Blender-IO you can find [here](https://github.com/slyedoc/glTF-Blender-IO/tree/material-info), only way to completely fix the material info issue with multiple materials per mesh and reduce log output.
 
 ## Noteable files
 

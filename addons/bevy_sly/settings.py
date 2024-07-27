@@ -1756,7 +1756,8 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         export_yup=True,
 
         # TODO: add animations back
-        export_animations=False,
+        export_animations=True,
+        export_gn_mesh=True,
         #export_draco_mesh_compression_enable=True,
         #export_skins=True,
         #export_morph=False,
@@ -1769,14 +1770,14 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
 
         # other filters
         use_selection=False,
-        use_visible=False, # Export visible and hidden objects
+        use_visible=True, # Export visible and hidden objects
         use_renderable=False,
         
         #export_keep_originals=True,
         #export_attributes=True,
         #export_shared_accessors=True,
         #export_hierarchy_flatten_objs=False, # Explore this more
-        #export_texcoords=True, # used by material info and uv sets
+        export_texcoords=True, # used by material info and uv sets
         #export_normals=True,
         #export_tangents=False,
         #export_materials

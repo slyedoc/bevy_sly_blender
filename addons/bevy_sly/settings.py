@@ -369,7 +369,23 @@ class BevySettings(bpy.types.PropertyGroup):
                      bpy.data.objects.remove(object, do_unlink=True)
             bpy.data.scenes.remove(material_scene)
             material_time =  time.time() - material_time
+ 
+            # export blueprints 
+            blueprint_time = time.time()
+            blueprint_gltf_time = 0
+            for index, blueprint in enumerate(blueprints_to_export):
+                print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
+                gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
+                collection = bpy.data.collections[blueprint.name]
+                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
+                copy_collection(collection, temp_scene.collection)
+                tmp_time = time.time()
+                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
+                blueprint_gltf_time += time.time() - tmp_time
+                delete_scene(temp_scene )                
+                restore_original_names(collection)
 
+            blueprint_time =  time.time() - blueprint_time
 
             # export levels
             level_time = time.time()
@@ -388,23 +404,6 @@ class BevySettings(bpy.types.PropertyGroup):
                 delete_scene(temp_scene)
                 restore_original_names(level_scene.collection)
             level_time =  time.time() - level_time
- 
-            # export blueprints 
-            blueprint_time = time.time()
-            blueprint_gltf_time = 0
-            for index, blueprint in enumerate(blueprints_to_export):
-                print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
-                gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
-                collection = bpy.data.collections[blueprint.name]
-                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
-                copy_collection(collection, temp_scene.collection)
-                tmp_time = time.time()
-                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
-                blueprint_gltf_time += time.time() - tmp_time
-                delete_scene(temp_scene )                
-                restore_original_names(collection)
-
-            blueprint_time =  time.time() - blueprint_time
 
             # reset scene
             bpy.context.window.scene = original_scene
@@ -1776,8 +1775,8 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         #export_keep_originals=True,
         #export_attributes=True,
         #export_shared_accessors=True,
-        #export_hierarchy_flatten_objs=False, # Explore this more
-        export_texcoords=True, # used by material info and uv sets
+        export_hierarchy_flatten_objs=True, # flattens the hierarchy of objects
+        export_texcoords=False, # used by material info and uv sets
         #export_normals=True,
         #export_tangents=False,
         #export_materials
@@ -1846,11 +1845,7 @@ def copy_collection(src_col: bpy.types.Collection, dst_col: bpy.types.Collection
                 # bevy_components will be copied, dont need the components_meta
                 if property_name == "components_meta":
                     continue                
-                #print(f"copy {orginal_name} - {property_name}: {property_value}")                
-                # this should copy all custom properties over, include the bevy_components
                 dupe[property_name] = property_value     
-                # if property_name not in custom_properties_to_filter_out and is_component_valid_and_enabled(o, property_name): #copy only valid properties
-                #     empty_obj[property_name] = property_value                    
         else:            
             # copy the object
             dupe = o.copy()

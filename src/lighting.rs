@@ -9,7 +9,7 @@ pub(crate) fn plugin(app: &mut App) {
         .register_type::<BlenderLightShadows>()
         .add_systems(
             PostUpdate,
-            (process_lights, process_shadowmap, process_background_shader)
+            (process_lights,  ) // process_shadowmap, process_background_shader
                 .after(BlenderSet::Injection),
         );
 }
@@ -72,6 +72,8 @@ fn process_lights(
     }
 }
 
+
+#[allow(dead_code)]
 fn process_shadowmap(
     shadowmaps: Query<&BlenderShadowSettings, Added<BlenderShadowSettings>>,
     mut commands: Commands,
@@ -83,6 +85,7 @@ fn process_shadowmap(
     }
 }
 
+#[allow(dead_code)]
 fn process_background_shader(
     background_shaders: Query<&BlenderBackgroundShader, Added<BlenderBackgroundShader>>,
     mut commands: Commands,

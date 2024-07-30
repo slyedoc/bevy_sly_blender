@@ -6,14 +6,10 @@
 pub mod aabb;
 
 pub mod lighting;
-
-mod materials;
-pub use materials::*;
-
 pub use lighting::*;
 
-mod blueprints;
-pub use blueprints::*;
+mod components;
+pub use components::*;
 
 #[cfg(feature = "registry")]
 pub mod registry;
@@ -23,34 +19,19 @@ pub use registry::*;
 use core::fmt;
 use std::path::PathBuf;
 
-use bevy::{gltf::GltfExtras, prelude::*, render::primitives::Aabb, utils::HashMap};
+use bevy::{prelude::*, render::primitives::Aabb, utils::HashMap};
 
 mod ronstring_to_reflect_component;
 pub use ronstring_to_reflect_component::*;
 
 pub mod prelude {
     pub use crate::{
-        blueprints::*, materials::*, BlenderPlugin, BlenderSet, GltfFormat,
+        components::*, BlenderPlugin, BlenderSet, GltfFormat,
     };
 
     #[cfg(feature = "registry")]
     pub use crate::registry::*;
 }
-
-/// These are used to flatten entities structure
-/// tons of the orginal code was trying to clean up after bevy_scene and io_scene_gltf2 and gltf parser created heirarchies
-/// this instead bypasses scene bundle and copies the entities directly to the app world, directly from loaded gltf
-/// coping logic is based on bevy_scene::scene::write_to_world_with
-/// we make some assumptions about gltf parser inserts entities in order
-/// by heirarchy and assume root entity is always 0v1 and never has anything useful on it, so we skip it
-/// we also assume 0v1 only has one child, making 1v1 the entity we want as new root entity
-/// we make this last assumption because component_meta has to be on object instead of collection, so if we want
-/// to be able to set component on the blueprint entity there cant be many children
-/// See [`SpawnLevel`] and [`SpawnBlueprint`] for there use
-// #[cfg(not(feature = "nested"))]
-// pub(crate) const SCENE_ROOT: Entity = Entity::from_raw(0); // the root entity in the scene
-// #[cfg(not(feature = "nested"))]
-// pub(crate) const SCENE_NEW_ROOT: Entity = Entity::from_raw(1); // the only child of that root entity
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 /// set for the two stages of blueprint based spawning :
@@ -137,7 +118,7 @@ impl Plugin for BlenderPlugin {
         ))
         // rest
         .register_type::<BlueprintName>()
-        .register_type::<materials::MaterialName>()
+        .register_type::<MaterialName>()
         .add_event::<BlueprintSpawned>()
         .register_type::<HashMap<String, Vec<String>>>()
         .insert_resource(BlenderPluginConfig {
@@ -177,7 +158,7 @@ impl Plugin for BlenderPlugin {
         .add_systems(
             PostUpdate,
             (
-                spawn_gltf_extras,
+                //spawn_gltf_extras,
                 aabb::compute_scene_aabbs.run_if(aabbs_enabled), // .and_then(on_event::<BlueprintSpawned>())
             )
                 .chain()
@@ -218,45 +199,3 @@ fn aabbs_enabled(blueprints_config: Res<BlenderPluginConfig>) -> bool {
     blueprints_config.aabbs
 }
 
-// parse gltf extras on added and spawn the components
-// note: using world so we can make use of ReflectComponent::insert
-fn spawn_gltf_extras(world: &mut World) {
-    // get the added extras
-    let extras = world
-        .query::<(Entity, &GltfExtras)>()
-        .iter(world)
-        .map(|(entity, extra)| (entity.clone(), extra.clone()))
-        .collect::<Vec<(Entity, GltfExtras)>>();
-
-    if !extras.is_empty() {
-        //info!("spawning gltf extras: {:?}", extras);
-        // add the components
-        world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
-            let type_registry = type_registry.read();
-            for (entity, extra) in &extras {
-                let reflect_components =
-                    ronstring_to_reflect_component(&extra.value, &type_registry);
-                //let tmp_name = Name::new("tmp".to_string());
-                //let name = world.entity(*entity).get::<Name>().unwrap_or(&tmp_name).clone();
-                // if extra.value.contains("orbit::") {
-                //     let msg = format!("{} - {}", name.clone(), extra.value)
-                //     .replace("\\\"", "\"")
-                //     .replace("\"", "");
-                //     dbg!(msg);
-                // }
-                for (component, type_registration) in reflect_components {
-                    let mut entity_mut = world.entity_mut(*entity);
-                    type_registration
-                        .data::<ReflectComponent>()
-                        .expect("Unable to reflect component")
-                        .insert(&mut entity_mut, &*component, &type_registry);
-                }
-            }
-        });
-    }
-
-    // remove the extras
-    for (entity, _) in &extras {
-        world.entity_mut(*entity).remove::<GltfExtras>();
-    }
-}

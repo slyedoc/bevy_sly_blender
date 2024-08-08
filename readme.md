@@ -14,6 +14,6 @@ Also using small fork of glTF-Blender-IO you can find [here](https://github.com/
 
 ## Noteable files
 
-- [\_\_init\_\_.py](./plugin/__init__.py) - Main entry point, wire everything up
-- [settings.py](./plugin/settings.py) - Settings, using as App world pretty much
-- [ui/main.py](./plugin/ui/main.py) - UI
+- [\_\_init\_\_.py](./addons/bevy_sly/__init__.py) - Main entry point, wire everything up
+- [settings.py](./addons/bevy_sly/settings.py) - Settings, using as App world pretty much
+- [ui](./addons/bevy_sly/ui/main.py) - UI

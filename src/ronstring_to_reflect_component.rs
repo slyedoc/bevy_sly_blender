@@ -88,6 +88,8 @@ fn components_string_to_components(
         let ignore = vec![
             // our selfs
             "Components_meta",
+            "Ant_landscape",
+            "COLOR_1",
             "Gltf2_animation_rest",
             "CurrentUVSet",
             // shipwright_collection

@@ -284,8 +284,9 @@ class BevySettings(bpy.types.PropertyGroup):
     @classmethod
     def save_handler(self, scene, depsgraph):
         print("saved", bpy.data.filepath)
-        # auto_export(changes_per_scene, export_parameters_changed)
         bpy.ops.export_scenes.auto_gltf()
+        # auto_export(changes_per_scene, export_parameters_changed)
+        
 
         # # (re)set a few things after exporting
         # # reset wether the gltf export paramters were changed since the last save 
@@ -297,8 +298,6 @@ class BevySettings(bpy.types.PropertyGroup):
 
     # export the scenes, blueprints, materials etc
     def export(self): # , changes_per_scene, changed_export_parameters
-        
-        util = time.time()
 
         # save active scene, selected collection and mode
         original_scene = bpy.context.window.scene
@@ -329,81 +328,68 @@ class BevySettings(bpy.types.PropertyGroup):
         material_names = list(set(library_material_names + level_material_names))
         current_project_name = Path(bpy.context.blend_data.filepath).stem
 
-        # update the list of tracked exports
-        #exports_total = blueprint_count + level_count + 1  # +1 for the materials library
-        #bpy.context.window_manager.auto_export_tracker.exports_total = exports_total
-        #bpy.context.window_manager.auto_export_tracker.exports_count = exports_total
-
         print("-------------------------------")
         print("Materials    : ", len(material_names))        
         print("Levels       : ", level_count)
-        print("Blueprints   : ", len(self.data.internal_blueprints))        
+        print("Blueprints   : ", blueprint_count)
         print("-------------------------------")
-
-        util =  time.time() - util
 
         try:           
             # Export materials by creating scene with a cube for each material then save it
-            material_time = time.time()
-            print(f"exporting materials (all { len(material_names) }) - {current_project_name}" )
-            gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
-            material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
-            for index, material_name in enumerate(material_names):
-                object = make_cube("Material_"+material_name, location=[index * 0.2,0,0], rotation=[0,0,0], scale=[1,1,1], scene=material_scene)
-                material = bpy.data.materials[material_name]
-                if material:
-                    if object.data.materials: # assign to 1st material slot
-                        object.data.materials[0] = material
-                    else: # no slots
-                        object.data.materials.append(material)      
-            material_gltf_time = time.time()
-            export_scene(material_scene, {}, gltf_path)
-            material_gltf_time = time.time() - material_gltf_time
+            # material_time = time.time()
+            # print(f"exporting materials (all { len(material_names) }) - {current_project_name}" )
+            # gltf_path = os.path.join(self.assets_path, MATERIALS_PATH, current_project_name + "_materials")
+            # material_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX + "_materials")                
+            # for index, material_name in enumerate(material_names):
+            #     object = make_cube("Material_"+material_name, location=[index * 0.2,0,0], rotation=[0,0,0], scale=[1,1,1], scene=material_scene)
+            #     material = bpy.data.materials[material_name]
+            #     if material:
+            #         if object.data.materials: # assign to 1st material slot
+            #             object.data.materials[0] = material
+            #         else: # no slots
+            #             object.data.materials.append(material)      
+            # material_gltf_time = time.time()
+            # export_scene(material_scene, {}, gltf_path)
+            # material_gltf_time = time.time() - material_gltf_time
 
-            # delete material scene:
-            for o in material_scene.collection.objects:            
-                if o.type == 'MESH':                     
-                     mesh = bpy.data.meshes[o.name+"_Mesh"]
-                     bpy.data.meshes.remove(mesh, do_unlink=True)
-                else:
-                     bpy.data.objects.remove(object, do_unlink=True)
-            bpy.data.scenes.remove(material_scene)
-            material_time =  time.time() - material_time
+            # # delete material scene:
+            # for o in material_scene.collection.objects:            
+            #     if o.type == 'MESH':                     
+            #          mesh = bpy.data.meshes[o.name+"_Mesh"]
+            #          bpy.data.meshes.remove(mesh, do_unlink=True)
+            #     else:
+            #          bpy.data.objects.remove(object, do_unlink=True)
+            # bpy.data.scenes.remove(material_scene)
+            # material_time =  time.time() - material_time
  
             # export blueprints 
-            blueprint_time = time.time()
-            blueprint_gltf_time = 0
             for index, blueprint in enumerate(blueprints_to_export):
                 print(f"exporting blueprint ({index+1}/{blueprint_count}) - {blueprint.name}")
                 gltf_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name)                                
                 collection = bpy.data.collections[blueprint.name]
                 temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+collection.name)                
                 copy_collection(collection, temp_scene.collection)
-                tmp_time = time.time()
-                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
-                blueprint_gltf_time += time.time() - tmp_time
+                export_scene(temp_scene, {}, gltf_path)
                 delete_scene(temp_scene )                
                 restore_original_names(collection)
 
-            blueprint_time =  time.time() - blueprint_time
 
-            # export levels
-            level_time = time.time()
-            level_gltf_time = 0
+
+            # export levels                    
             for index, level_scene in enumerate(level_scenes):                                                             
                 print(f"exporting level ({index+1}/{level_count}) - {level_scene.name}")                
                 gltf_path = os.path.join(self.assets_path, LEVELS_PATH, level_scene.name)    
-                temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+ level_scene.name)  
-                copy_collection(level_scene.collection, temp_scene.collection)
-                if EXPORT_SCENE_SETTINGS:
-                    add_scene_settings(temp_scene)
+                #temp_scene = bpy.data.scenes.new(name=TEMPSCENE_PREFIX+"_"+ level_scene.name)  
+                #copy_collection(level_scene.collection, temp_scene.collection)
+                #if EXPORT_SCENE_SETTINGS:
+                #    add_scene_settings(temp_scene)
                 tmp_time = time.time()
-                export_scene(temp_scene, {'export_materials': 'PLACEHOLDER'}, gltf_path)
-                level_gltf_time += time.time() - tmp_time
+                export_scene(level_scene, {}, gltf_path) #{'export_materials': 'PLACEHOLDER'}
+                print(f"exported {level_scene.name} in {time.time() - tmp_time:6.2f}s")
 
-                delete_scene(temp_scene)
-                restore_original_names(level_scene.collection)
-            level_time =  time.time() - level_time
+                #delete_scene(temp_scene)
+                #restore_original_names(level_scene.collection)
+            
 
             # reset scene
             bpy.context.window.scene = original_scene
@@ -419,19 +405,10 @@ class BevySettings(bpy.types.PropertyGroup):
                 self.layout.label(text="Failure during auto_export: Error: "+ str(error))
             bpy.context.window_manager.popup_menu(error_message, title="Error", icon='ERROR')
 
-        total = util + material_time + level_time + blueprint_time
         def format_percent(value):
             return f"{value*100:5.1f}%"
         def format_time(value):
             return f"{value:6.2f}s"
-        print(f"Timings     | Seconds | % of total | io_scene percentage of total |")
-        print(f"            ------------------------------------------------------------")
-        print(f"Setup       | {format_time(util)} {format_percent(util/total)}")
-        print(f"Materials   | {format_time(material_time)} {format_percent(material_time/total)} \t\t{format_percent(material_gltf_time/total)}")
-        print(f"Levels      | {format_time(level_time)} {format_percent(level_time/total)} \t\t{format_percent(level_gltf_time/total)}")
-        print(f"Blueprints  | {format_time(blueprint_time)} {format_percent(blueprint_time/total)} \t\t{format_percent(blueprint_gltf_time/total)}")
-        print(f"            ------------------------------------------------------------")
-        print(f"Total       : {format_time(total)}")
 
 
     @classmethod
@@ -1659,40 +1636,6 @@ class BevySettings(bpy.types.PropertyGroup):
     # TODO: this should also take the split/embed mode into account: if a nested collection changes AND embed is active, its container collection should also be exported
     def get_blueprints_to_export(self) -> list[Blueprint]:        
         blueprints_to_export = self.data.internal_blueprints
-
-        # if the export parameters have changed, bail out early
-        # we need to re_export everything if the export parameters have been changed
-        # changes_per_scene = {}
-        # changed_export_parameters = True
-        # if CHANGE_DETECTION and not changed_export_parameters:
-        #     changed_blueprints = []
-
-        #     # first check if all collections have already been exported before (if this is the first time the exporter is run
-        #     # in your current Blender session for example)       
-
-        #     # check if the blueprints are already on disk
-        #     blueprints_not_on_disk = []
-        #     for blueprint in self.data.internal_blueprints:
-        #         gltf_output_path = os.path.join(self.assets_path, BLUEPRINTS_PATH, blueprint.name + GLTF_EXTENSION)
-        #         found = os.path.exists(gltf_output_path) and os.path.isfile(gltf_output_path)
-        #         if not found:
-        #             blueprints_not_on_disk.append(blueprint)
-
-        #     for scene in library_scenes:
-        #         if scene.name in changes_per_scene:
-        #             changed_objects = list(changes_per_scene[scene.name].keys())
-        #             changed_blueprints = [self.data.blueprints_from_objects[changed] for changed in changed_objects if changed in self.data.blueprints_from_objects]
-        #             # we only care about local blueprints/collections
-        #             changed_local_blueprints = [blueprint for blueprint in changed_blueprints if blueprint.name in self.data.blueprints_per_name.keys() and blueprint.local]
-        #             # FIXME: double check this: why are we combining these two ?
-        #             changed_blueprints += changed_local_blueprints
-
-        #     blueprints_to_export = list(set(changed_blueprints + blueprints_not_on_disk))
-        # else:
-        #    blueprints_to_export = self.data.internal_blueprints
-
-        # filter out blueprints that are not marked & deal with the different combine modes
-        # we check for blueprint & object specific overrides ...
         filtered_blueprints = []
         for blueprint in blueprints_to_export:
             if blueprint.marked:
@@ -1744,11 +1687,12 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
     # this are our default settings, can be overriden by settings
     #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
     export_settings = dict(     
-        log_info=False, # limit the output, was blowing up my console, requires material-info branch version of the io_scene_gltf
+        log_info=False, # limit the output, was blowing up my console        
         check_existing=False,
+        export_hierarchy_full_collections=False,
 
         # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
-        export_apply=True,
+        export_apply=True, # prevents exporting shape keys
         export_cameras=True,
         export_extras=True, # For custom exported properties.
         export_lights=True,            
@@ -1756,6 +1700,7 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
 
         # TODO: add animations back
         export_animations=True,
+        export_animation_mode='ACTIONS',
         export_gn_mesh=True,
         #export_draco_mesh_compression_enable=True,
         #export_skins=True,
@@ -1763,7 +1708,7 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         #export_optimize_animation_size=False
 
         # use only one of these at a time
-        use_active_collection_with_nested=False, # these 2
+        use_active_collection_with_nested=False,
         use_active_collection=False,
         use_active_scene=True, 
 
@@ -1775,10 +1720,11 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         #export_keep_originals=True,
         #export_attributes=True,
         #export_shared_accessors=True,
-        export_hierarchy_flatten_objs=True, # flattens the hierarchy of objects
-        export_texcoords=False, # used by material info and uv sets
-        #export_normals=True,
-        #export_tangents=False,
+        #export_hierarchy_flatten_objs=True, # note: breakes any collection hierarchy
+        #export_texcoords=True, # used by material info and uv sets
+        #export_tangents=True, # used by meshlets
+        export_normals=True,
+        
         #export_materials
         #export_colors=True,
         #use_mesh_edges

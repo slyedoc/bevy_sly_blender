@@ -11,6 +11,8 @@ bl_info = {
 }
 
 import bpy
+import time
+
 from bpy_types import (PropertyGroup)
 from bpy.props import (StringProperty, BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, IntVectorProperty, EnumProperty, PointerProperty, CollectionProperty)
 
@@ -49,7 +51,7 @@ from .settings import BevySettings, SceneSelector, RegistryType, MissingBevyType
 from .component_definitions_list import ComponentDefinitionsList
 from .rename_helper import RenameHelper
 from .components_meta import (ComponentMetadata, ComponentsMeta)
-from .auto_export_tracker import AutoExportTracker
+#from .auto_export_tracker import AutoExportTracker
 
 addon_keymaps = []
 
@@ -109,9 +111,13 @@ classes = [
 ]
 
 # Called when basiclly anything changes
-# @persistent
+@persistent
 def post_update(scene, depsgraph):
-    print("\npost_update\n");
+    
+    # print time in miltary time
+    date = time.strftime("%H:%M:%S", time.localtime())
+    #print(f"post_update: { date } \n")
+
     #auto_export_tracker = bpy.context.window_manager.auto_export_tracker # type: AutoExportTracker
     #auto_export_tracker.deps_post_update_handler( scene, depsgraph)
 

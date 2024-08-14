@@ -327,6 +327,40 @@ class BevySettings(bpy.types.PropertyGroup):
         library_material_names = self.get_all_materials(library_scenes, True)
         material_names = list(set(library_material_names + level_material_names))
         current_project_name = Path(bpy.context.blend_data.filepath).stem
+    
+        # delete properties we dont want
+        BC = 'bevy_components'
+        CM = 'components_meta'
+        delete_props = list(["MaterialInfo", "kitops", "scatter5", "ant_landscape",]) 
+
+
+        for scene in bpy.data.scenes:
+            # Iterate over all objects in the current scene
+            for obj in scene.objects:
+                # delete properties we dont want
+                props_to_delete = []
+                for key in obj.keys():
+                    if key in delete_props:
+                        print(f"[WARNING] Delete {key} on {obj.name} - in delete_props")
+                        props_to_delete.append(key)         
+
+                if CM in obj:
+                    meta = getattr(obj, CM, None) ## type: ComponentsMeta   
+                    #if len(meta.components) == 0:
+                    print(f"[WARNING]: Delete components_meta on {obj.name}")
+                    props_to_delete.append(CM)   
+                                
+                for key in set(props_to_delete):
+                    del obj[key]
+                    # else:
+                    #     for index, c in enumerate(meta.components): ## type: ComponentMetadata                    
+                    #         if is_debug_obj(obj):
+                    #             print(f"[INFO] \t{c.long_name}")
+                    #         if c.long_name in delete_meta_components:
+                    #             print(f"[WARNING] Delete {c.long_name} on {obj.name} - in delete_components")
+                    #             if for_real:
+                    #                 meta.components.remove(index)
+
 
         print("-------------------------------")
         print("Materials    : ", len(material_names))        
@@ -449,7 +483,6 @@ class BevySettings(bpy.types.PropertyGroup):
     # - marked as asset
     # - with the "auto_export" flag
     # https://blender.stackexchange.com/questions/167878/how-to-get-all-collections-of-the-current-scene
-    # TODO: flatten this, use all_objects
     def scan_blueprints(self, main_scenes: list[bpy.types.Scene], library_scenes: list[bpy.types.Scene] ):
          # will update blueprints_data        
 
@@ -1097,16 +1130,6 @@ class BevySettings(bpy.types.PropertyGroup):
                 "values_list_index": IntProperty(name = "Index for values", default = 0,  update=update),
                 "values_setter":values_property_group_pointer,
             }
-        
-        """__annotations__["list"] = StringProperty(default="N/A")
-        __annotations__["values_list"] = StringProperty(default="N/A")
-        __annotations__["keys_setter"] = StringProperty(default="N/A")"""
-
-        """registry.add_missing_typeInfo(key_ref_name)
-        registry.add_missing_typeInfo(value_ref_name)
-        # the root component also becomes invalid (in practice it is not always a component, but good enough)
-        registry.add_invalid_component(nesting_long_names[0])
-        print("setting invalid flag for", nesting_long_names[0])"""
 
         return __annotations__
 
@@ -1687,9 +1710,12 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
     # this are our default settings, can be overriden by settings
     #https://docs.blender.org/api/current/bpy.ops.export_scene.html#bpy.ops.export_scene.gltf        
     export_settings = dict(     
-        log_info=False, # limit the output, was blowing up my console        
+        #log_info=False, # limit the output, was blowing up my console        
         check_existing=False,
+
+        # Export collections as empty, keeping full hierarchy. If an object is in multiple collections, it will be exported it only once, in the first collection it is found.
         export_hierarchy_full_collections=False,
+        export_hierarchy_flatten_objs=False, # note: breakes any collection hierarchy
 
         # export_format= 'GLB', #'GLB', 'GLTF_SEPARATE', 'GLTF_EMBEDDED'
         export_apply=True, # prevents exporting shape keys
@@ -1697,11 +1723,11 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         export_extras=True, # For custom exported properties.
         export_lights=True,            
         export_yup=True,
-
-        # TODO: add animations back
+        
         export_animations=True,
         export_animation_mode='ACTIONS',
         export_gn_mesh=True,
+        export_attributes=True,
         #export_draco_mesh_compression_enable=True,
         #export_skins=True,
         #export_morph=False,
@@ -1718,9 +1744,8 @@ def export_scene(scene: bpy.types.Scene, settings: Dict[str, Any], gltf_output_p
         use_renderable=False,
         
         #export_keep_originals=True,
-        #export_attributes=True,
         #export_shared_accessors=True,
-        #export_hierarchy_flatten_objs=True, # note: breakes any collection hierarchy
+       
         #export_texcoords=True, # used by material info and uv sets
         #export_tangents=True, # used by meshlets
         export_normals=True,

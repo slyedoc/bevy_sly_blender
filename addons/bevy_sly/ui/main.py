@@ -426,8 +426,7 @@ class BEVY_PT_SidePanel(bpy.types.Panel):
 
                 row = layout.row()
                 row.label(text="Registry File")
-                col = row.column()
-                col.enabled = False                        
+                 
                 col.prop(data=bevy, property="registry_file", text="")
                 row.operator(OT_OpenRegistryFileBrowser.bl_idname, icon="FILE", text="")
 

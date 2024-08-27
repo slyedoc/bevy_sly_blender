@@ -25,9 +25,10 @@ pub fn ronstring_to_reflect_component(
         };
 
         if component.as_str() == "bevy_components" {
-            bevy_components_string_to_components(parsed_value, type_registry, &mut components,&name);
+            bevy_components_string_to_components(parsed_value, type_registry, &mut components, &name);
         } else {
             components_string_to_components(
+                &name,
                 component,
                 value,
                 parsed_value,
@@ -40,6 +41,7 @@ pub fn ronstring_to_reflect_component(
 }
 
 fn components_string_to_components(
+    entity_name: &Option<Name>,
     name: String,
     value: Value,
     parsed_value: String,
@@ -110,7 +112,7 @@ fn components_string_to_components(
             "Scatter5",
         ];
         if !ignore.iter().any(|s| capitalized_type_name.contains(s)) {
-            warn!("no type registration for {}", capitalized_type_name);
+            warn!("no type registration on {:?} for {}", entity_name, capitalized_type_name);
         }
     }
 }
@@ -154,7 +156,7 @@ fn bevy_components_string_to_components(
             components.push((component, type_registration.clone()));
             debug!("found type registration for {}", key);
         } else {
-            warn!("no type registration for {}", key);
+            warn!("no type registration on {:?} for {}", name, key);
         }
     }
 }

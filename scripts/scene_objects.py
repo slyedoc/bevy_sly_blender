@@ -6,22 +6,26 @@ import json
 #   viewing: bevy_components and components_meta states
 
 # Safety first
-for_real = False
+for_real = True
 
 # List of objects to print out debug info for
-debug_objects = list(["*"]) # ["*"] for all objects
+debug_objects = list([]) # ["*"] for all objects
 
 # List of properties to delete if found on object
 
 delete_props = list(["MaterialInfo", "kitops", "scatter5", "ant_landscape",]) 
 # "shipwright_collection", "plating_generator", "shape_generator_collection",
 
-delete_bevy_components = list(["orbit::shaders::Skyboxasdfasdf"])
-debug_bevy_components = list(["*"]) # ["*"] for all objects
+delete_bevy_components = list(["probe::physics::Obstacle", "probe::physics::collider::ColliderHelper"])
+debug_bevy_components = list([]) # ["*"] for all objects
 replace_bevy_components = list([
 #    ("bevy_xpbd_3d::components::RigidBody", "avian3d::dynamics::RigidBody"),
 #    ("avian3d::dynamics::RigidBody", "avian3d::dynamics::rigid_body::RigidBody"),
 #    ("bevy_picking_xpbd::XpbdPickable", "avian3d::AvianPickable")
+    ("probe::agents::Obstacle", "probe::assets::collider::Obstacle"),
+    ("probe::agents::collider::ColliderHelper", "probe::assets::collider::ColliderHelper"),
+    ("probe::assets::ColliderHelper", "probe::assets::collider::ColliderHelper"),
+    
 ])
 
 # List of components to delete if found in components_meta
